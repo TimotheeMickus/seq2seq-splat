@@ -65,6 +65,7 @@ model_name = f"Helsinki-NLP/opus-mt-{src}-{trg}"
 
 model = hf.MarianModel.from_pretrained(model_name).to(dtype=torch.float64)
 tokenizer = hf.MarianTokenizer.from_pretrained(model_name)
+model.eval()
 
 def decompose(src_sent, tgt_sent, last_layer_only=True):
     inputs_src = tokenizer([src_sent], return_tensors='pt')
@@ -78,22 +79,35 @@ def decompose(src_sent, tgt_sent, last_layer_only=True):
     decomposition = torch.zeros_like(decoder_embs).transpose(0,1).expand(-1, 5, -1).unsqueeze(0).contiguous()
     decomposition[:,:,I,:] += input_tensor
 
-
     if not last_layer_only:
         all_decompositions = [decomposition]
         current_decomposition = decomposition.detach().clone()
     else:
         current_decomposition = decomposition
     assert torch.allclose(current_decomposition.sum(-2), input_tensor), 'Imprecise decomposition!'
-    causal_mask = hf.models.marian.modeling_marian._make_causal_mask(inputs_tgt.input_ids.size(), input_tensor.dtype)
+    causal_mask = decoder._prepare_decoder_attention_mask(
+        None, input_shape, decoder_embs, 0
+    )
+    encoder_attn_mask = hf.models.marian.modeling_marian._expand_mask(inputs_src.attention_mask, decomposition.dtype, tgt_len=input_shape[-1])
+    # hf.models.marian.modeling_marian._make_causal_mask(inputs_tgt.input_ids.size(), input_tensor.dtype)
     for idx, layer in enumerate(decoder.layers):
-        reference = layer(input_tensor, causal_mask, encoder_outputs)[0]
+        reference = layer(
+            input_tensor,
+            attention_mask=causal_mask,
+            encoder_hidden_states=encoder_outputs,
+            encoder_attention_mask=encoder_attn_mask,
+            layer_head_mask=None,
+            cross_attn_layer_head_mask=None,
+            past_key_value=None,
+            output_attentions=True,
+            use_cache=False,
+        )[0]
         residual = current_decomposition.detach().clone()
         hidden_state, current_decomposition = apply_attention(layer.self_attn, input_tensor, T, input_tensor, causal_mask, current_decomposition)
         hidden_state, current_decomposition = apply_layer_norm(layer.self_attn_layer_norm, hidden_state + input_tensor, current_decomposition)
         input_tensor = hidden_state
 
-        hidden_state, current_decomposition = apply_attention(layer.encoder_attn, hidden_state, S, encoder_outputs, None, current_decomposition)
+        hidden_state, current_decomposition = apply_attention(layer.encoder_attn, hidden_state, S, encoder_outputs, encoder_attn_mask, current_decomposition)
         hidden_state, current_decomposition = apply_layer_norm(layer.encoder_attn_layer_norm, hidden_state + input_tensor, current_decomposition)
         input_tensor = hidden_state
 
@@ -105,9 +119,8 @@ def decompose(src_sent, tgt_sent, last_layer_only=True):
             all_decompositions.append(current_decomposition)
             current_decomposition = current_decomposition.detach().clone()
         assert torch.allclose(current_decomposition.sum(-2), reference), 'Imprecise decomposition!'
+        assert torch.allclose(input_tensor, reference), 'Imprecise decomposition!'
+    assert torch.allclose(decoder(**inputs_tgt, encoder_hidden_states=encoder_outputs).last_hidden_state, current_decomposition.sum(-2)), 'What the fuck?!'
     if not last_layer_only:
         current_decomposition = torch.cat(all_decompositions, dim=0)
     return current_decomposition
-
-import pdb; pdb.set_trace()
-decompose("J'ai un petit caniche.", "I have a small pooch.")
