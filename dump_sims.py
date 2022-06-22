@@ -37,7 +37,7 @@ def norm_ratio(decomposition, total_embs=None):
         total_embs = decomposition.sum(-2)
     tgt_norms = torch.linalg.norm(total_embs, dim=-1, keepdims=True)
     dcp_norms = torch.linalg.norm(decomposition, dim=-1)
-    return tgt_norms / dcp_norms
+    return dcp_norms / tgt_norms
 
 def spims_from_files(decomposer, source_file, target_file, dump_file):
     with open(source_file) as src, open(target_file) as tgt, open(dump_file, 'w') as ostr:
