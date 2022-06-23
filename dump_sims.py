@@ -69,6 +69,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.do_generate:
         model_mt = hf.MarianMTModel.from_pretrained(args.model).to(device=args.device, dtype=torch.float64)
+        model_mt.eval()
         tokenizer = hf.MarianTokenizer.from_pretrained(args.model)
         with open(args.src) as istr:
             source_sentences = list(map(str.strip, istr))

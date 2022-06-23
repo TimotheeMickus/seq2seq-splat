@@ -32,7 +32,6 @@ def apply_attention(attention_module, input_tensor, A_idx, attention_bank, atten
     proj_shape = (bsz * attention_module.num_heads, -1, attention_module.head_dim)
     value_states = F_.linear(attention_bank, attention_module.v_proj.weight)
     value_states = attention_module._shape(value_states, -1, bsz)
-    # ok up til here; below seems iffy
     attention_weights =  attention_weights.view(bsz * attention_module.num_heads, tgt_len, src_len)
     attn_output = torch.bmm(attention_weights, value_states.view(*proj_shape))
     attn_output = attn_output.view(bsz, attention_module.num_heads, tgt_len, attention_module.head_dim)
