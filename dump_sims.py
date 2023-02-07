@@ -61,16 +61,19 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser('parallel corpus to CSV of spim')
     parser.add_argument('--model', type=str, required=True)
+    parser.add_argument('--tokenizer', type=str, default=None)
     parser.add_argument('--src', type=pathlib.Path, required=True)
     parser.add_argument('--tgt', type=pathlib.Path, required=True)
     parser.add_argument('--csv', type=pathlib.Path, required=True)
     parser.add_argument('--do_generate', action='store_true')
     parser.add_argument('--device', type=torch.device, default=torch.device('cuda'))
     args = parser.parse_args()
+    if args.tokenizer is None:
+        args.tokenizer = args.model
     if args.do_generate:
         model_mt = hf.MarianMTModel.from_pretrained(args.model).to(device=args.device, dtype=torch.float64)
         model_mt.eval()
-        tokenizer = hf.MarianTokenizer.from_pretrained(args.model)
+        tokenizer = hf.MarianTokenizer.from_pretrained(args.tokenizer)
         with open(args.src) as istr:
             source_sentences = list(map(str.strip, istr))
         with open(args.tgt, 'w') as ostr:
@@ -79,5 +82,5 @@ if __name__ == '__main__':
                 translation = model_mt.generate(**inputs)
                 print(tokenizer.decode(translation[0], skip_special_tokens=True), file=ostr)
         del model_mt, tokenizer
-    decomposer = Decomposer(args.model, device=args.device)
+    decomposer = Decomposer(args.model, args.tokenizer, device=args.device)
     spims_from_files(decomposer, args.src, args.tgt, args.csv)

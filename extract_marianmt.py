@@ -59,15 +59,15 @@ def apply_ff(layer, input_tensor, current_decomposition):
 
 
 class Decomposer():
-    def __init__(self, model_name, device='cuda'):
+    def __init__(self, model_name, tokenizer_name, device='cuda'):
         self.model_name = model_name
-        self.model = hf.MarianModel.from_pretrained(model_name).to(dtype=torch.float64, device=device)
+        self.model = hf.MarianMTModel.from_pretrained(model_name).to(dtype=torch.float64, device=device)
         self.model.eval()
-        self.tokenizer = hf.MarianTokenizer.from_pretrained(model_name)
+        self.tokenizer = hf.MarianTokenizer.from_pretrained(tokenizer_name)
         self.device = device
 
     def __call__(self, src_sent, tgt_sent, last_layer_only=True):
-        model, tokenizer, device = self.model, self.tokenizer, self.device
+        model, tokenizer, device = self.model.model, self.tokenizer, self.device
         inputs_src = tokenizer([src_sent], return_tensors='pt').to(device)
         inputs_tgt = tokenizer([tgt_sent], return_tensors='pt').to(device)
         encoder_outputs = model.encoder(**inputs_src).last_hidden_state
