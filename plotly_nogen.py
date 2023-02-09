@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 
 import pandas as pd
 
-dataset = pd.read_csv('./res-no-gen.csv')
+dataset = pd.read_csv('data/res-no-gen.csv')
 func = 'spim' # choices: spim, norm_ratio, cosine, l2
 last_ckpt = 585_000
 dataset = dataset[
