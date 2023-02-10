@@ -1,11 +1,12 @@
 import argparse
+import pathlib
 
 import plotly
 import plotly.graph_objects as go
 import pandas as pd
 
 parser = argparse.ArgumentParser()
-parser.add_argument('file')
+parser.add_argument('file', type=pathlib.Path)
 parser.add_argument('func', choices=['spim', 'cosine', 'norm_ratio', 'l2'])
 args = parser.parse_args()
 
@@ -24,12 +25,12 @@ terms = list('ISTFC')
 # make figure
 fig_dict = {
     "data": [],
-    "layout": {},
+    "layout": {"title": args.file.name},
     "frames": []
 }
 
 # fill in most of layout
-fig_dict["layout"]["xaxis"] = {"range": [-1,7], "title": "layer"}
+fig_dict["layout"]["xaxis"] = {"range": [-0.15,6.15], "title": "layer"}
 lo = min((dataset[f'mean {t}'] - dataset[f'std {t}']).min() for t in 'ISTFC')
 hi = max((dataset[f'mean {t}'] + dataset[f'std {t}']).max() for t in 'ISTFC')
 extra = (hi - lo) * 5 / 100
@@ -129,7 +130,7 @@ for ckpt in ckpts:
 fig_dict["layout"]["sliders"] = [sliders_dict]
 
 print('make fig')
-fig = go.Figure(fig_dict) 
+fig = go.Figure(fig_dict)
 
 print('show fig')
 fig.show()
