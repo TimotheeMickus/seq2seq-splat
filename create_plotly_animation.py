@@ -12,7 +12,7 @@ args = parser.parse_args()
 
 dataset = pd.read_csv(args.file)
 func = args.func
-last_ckpt = 585_000
+last_ckpt = 1_000_000 #585_000
 dataset = dataset[
 	(dataset.func == func) & (dataset.checkpoint <= last_ckpt)
 ].sort_values(by=['checkpoint', 'layer_idx'])
