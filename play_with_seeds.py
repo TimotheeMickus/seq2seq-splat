@@ -2,17 +2,27 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-s0=pd.read_csv('results/decomps/gen/res-gen-s0.csv')
-s1=pd.read_csv('results/decomps/gen/res-gen-s1.csv')
-s2=pd.read_csv('results/decomps/gen/res-gen-s2.csv')
+import sys
+
+sys.argv = sys.argv if len(sys.argv)==2 else [sys.argv[0],'gen']
+
+if sys.argv[1]=='gen':
+    s0=pd.read_csv('results/decomps/gen/res-gen-s0.csv')
+    s1=pd.read_csv('results/decomps/gen/res-gen-s1.csv')
+    s2=pd.read_csv('results/decomps/gen/res-gen-s2.csv')
+elif sys.argv[1]=='no-gen':
+    s0=pd.read_csv('results/decomps/no-gen/res-no-gen-s0.csv')
+    s0 = s0[s0.checkpoint <= 585000] # drop ckpts that are not form this model
+    s1=pd.read_csv('results/decomps/no-gen/res-no-gen-s1.csv')
+    s2=pd.read_csv('results/decomps/no-gen/res-no-gen-s2.csv')
 
 s0means = s0.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
 s1means = s1.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
 s2means = s2.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
 
-s0cos = s0means[s0['func']=='cosine']
-s1cos = s1means[s1['func']=='cosine']
-s2cos = s2means[s2['func']=='cosine']
+#s0cos = s0means[s0['func']=='cosine']
+#s1cos = s1means[s1['func']=='cosine']
+#s2cos = s2means[s2['func']=='cosine']
 
 
 """
