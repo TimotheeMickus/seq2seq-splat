@@ -1,46 +1,14 @@
+import sys
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-
-import sys
-
-sys.argv = sys.argv if len(sys.argv)==2 else [sys.argv[0],'gen']
-
-if sys.argv[1]=='gen':
-    s0=pd.read_csv('results/decomps/gen/res-gen-s0.csv')
-    s1=pd.read_csv('results/decomps/gen/res-gen-s1.csv')
-    s2=pd.read_csv('results/decomps/gen/res-gen-s2.csv')
-elif sys.argv[1]=='no-gen':
-    s0=pd.read_csv('results/decomps/no-gen/res-no-gen-s0.csv')
-    s0 = s0[s0.checkpoint <= 585000] # drop ckpts that are not form this model
-    s1=pd.read_csv('results/decomps/no-gen/res-no-gen-s1.csv')
-    s2=pd.read_csv('results/decomps/no-gen/res-no-gen-s2.csv')
-
-s0means = s0.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-s1means = s1.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-s2means = s2.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-
-#s0cos = s0means[s0['func']=='cosine']
-#s1cos = s1means[s1['func']=='cosine']
-#s2cos = s2means[s2['func']=='cosine']
+from dtw import dtw,accelerated_dtw
 
 
-"""
-BROKEN... need to figure out how to compare each checkpoint
-def make_scattermatrix(s:pd.DataFrame(), functions:list()=None):
-    '''
-    make animation of the scatter_matrix of the decomposed I,S,T,F,C
-    '''
-    func = functions if functions else s.func.unique() 
-    for f in func:
-        for ckpt in s.checkpoint.unique():
-            pd.plotting.scatter_matrix(s[(s['checkpoint']==ckpt)&(s['func']==f)].filter(items=['I','S','T','F','C']) )
-            plt.suptitle(f'{f} ckpt {ckpt}')
-"""
-
-global auxIDX
-auxIDX=1
 def plot_series_by_ind_and_layer(s, seed, functions:list()=None):
+    '''
+    Plot a time series of each component at a layer level
+    '''
     components= ['I', 'S', 'T', 'F', 'C']
     func = functions if functions else s.func.unique()
     fig, ax = plt.subplots(ncols=len(components), nrows=len(func), sharex=True, num=f'TS by layer{auxIDX} seed{seed}')
@@ -59,12 +27,6 @@ def plot_series_by_ind_and_layer(s, seed, functions:list()=None):
 
     currax.legend(bbox_to_anchor=(1.64, 4),title='layer')
 
-#plt.ion()
-plot_series_by_ind_and_layer(s0means,seed=1111)
-auxIDX +=1
-plot_series_by_ind_and_layer(s1means,seed=1989)
-auxIDX +=1
-plot_series_by_ind_and_layer(s2means,seed=20232)
 
 
 
@@ -85,7 +47,7 @@ def scatter_2seeds(s1, seed1:str(), s2, seed2:str(), f:str(), overlapfig:tuple()
         fig.suptitle(f'Scatter plots of {f} for rus-eng models with all three seeds')
 
     else:
-        fig, ax = plt.subplots(nrows=len(components), ncols=nlayers, num=f'scatter{auxIDX} metric{f}')
+        fig, ax = plt.subplots(nrows=len(components), ncols=nlayers, num=f'scatter{auxIDX} metric:{f}')
         fig.suptitle(f'Scatter of {f} for rus-eng models with seeds: {seed1} & {seed2}')
 
     for i,comp in enumerate(components):
@@ -111,68 +73,137 @@ def scatter_2seeds(s1, seed1:str(), s2, seed2:str(), f:str(), overlapfig:tuple()
     
     return fig,ax
 
-auxIDX=1
-for func in s0means.func.unique():
-    figure  = scatter_2seeds(s0means, '1111', s1means, '1988', func)
-    scatter_2seeds(s0means, '1111', s2means, '20232', func, overlapfig=figure)
-    scatter_2seeds(s1means, '1989', s2means, '20232', func, overlapfig=figure)
-    auxIDX+=1
-    #savefig... (f'RUS-ENG_SCATTERseeds_{func}.pdf') <- need the right size
-
-#plt.show()
 
 
 
-# Time Series
-#   ATTEMPT: Dynamic Time Warp
-from dtw import dtw,accelerated_dtw
-
-
-f='spim'
-comp='F'
-
-def plot_dtw_allseeds(models:dict(), f):
+def plot_dtw_allseeds(models:dict(), distances:pd.DataFrame(), metric:str(), comp:str(), multilingual=False):
     nlayers=7
-    fig, ax = plt.subplots(nrows=3, ncols=nlayers, num=f'DTW{auxIDX} metric{f} component{comp}')
-    fig.suptitle(f'DTW Minimum Path comparison across seeds \n metric:{f} and component:{comp}')
+    #fig, ax = plt.subplots(nrows=len(models), ncols=nlayers, num=f'DTW{auxIDX} metric{metric} component{comp}')
+    #fig.suptitle(f'DTW Minimum Path comparison across seeds \n metric:{metric} and component:{comp}')
 
-    for i, m in enumerate(['m1-m2', 'm2-m3','m3-m1']):
+    comparisons = ['m1-m2', 'm2-m3','m3-m1'] if not multilingual else [
+                   'm1-m2', 'm2-m3','m3-m1', 'ine-m1', 'ine-m2','ine-m3', 
+                   'sla-m1', 'sla-m2','sla-m3', 'mul-m1', 'mul-m2','mul-m3',
+                   ]
+    for i, m in enumerate(comparisons):
         m1,m2 = m.split('-')
-        s1, seed1 = models[m1]['df'], models[m1]['seed']
-        s2, seed2 = models[m2]['df'], models[m2]['seed']
-        
-        df =  pd.DataFrame(s1[s1['func']==f].filter(['layer_idx',f'{comp}','checkpoint'])).reset_index(drop=True)
+        mod1, mname1 = models[m1]['df'], models[m1]['modname']
+        mod2, mname2 = models[m2]['df'], models[m2]['modname']
+        df =  pd.DataFrame(mod1[mod1['func']==metric].filter(['layer_idx',f'{comp}','checkpoint'])).reset_index(drop=True)
         df = df.pivot(index='checkpoint', columns='layer_idx',values=f'{comp}')
-        df2 = pd.DataFrame(s2[s2['func']==f].filter(['layer_idx',f'{comp}','checkpoint'])).reset_index(drop=True)
+        df2 = pd.DataFrame(mod2[mod2['func']==metric].filter(['layer_idx',f'{comp}','checkpoint'])).reset_index(drop=True)
         df2 = df2.pivot(index='checkpoint', columns='layer_idx',values=f'{comp}') 
+        dlist=[mname1,mname2,metric,comp]
         for j in range(nlayers):
-            currax = ax[i][j]
             d1 = df[j].values
             d2 = df2[j].values
             d, cost_matrix, acc_cost_matrix, path = accelerated_dtw(d1,d2, dist='euclidean')
-
-            currax.imshow(acc_cost_matrix.T, origin='lower', cmap='gray', interpolation='nearest')
-            currax.plot(path[0], path[1], 'w')
-            if j == 0:
-                currax.set_xlabel(f'seed{seed1}', weight='bold')
-                currax.set_ylabel(f'seed{seed2}', weight='bold')
-            if i == 0:
-                currax.set_title(f'layer {j}')
-            currax.text(50, 500, f'distance: {np.round(d,3)}', 
+            dlist.append(d)
+            if False:
+                currax = ax[i][j]
+                currax.imshow(acc_cost_matrix.T, origin='lower', interpolation='nearest')
+                currax.plot(path[0], path[1], 'w')
+                if j == 0:
+                    currax.set_xlabel(f'{mname1}', weight='bold')
+                    currax.set_ylabel(f'{mname2}', weight='bold')
+                if i == 0:
+                    currax.set_title(f'layer {j}')
+                    currax.text(50, 500, f'distance: {np.round(d,3)}', 
                      bbox=dict(fill=True, color='gray'))
+            
+        distances = distances.append(pd.DataFrame([dlist], columns=distances.columns))
+    return distances
 
 
 
-models  ={'m1': {'df':s0means.copy(), 'seed':'1111'},
-          'm2': {'df':s1means.copy(), 'seed':'1989'},
-          'm3': {'df':s2means.copy(), 'seed':'20232'},}
 
-auxIDX=0
-for func in s0means.func.unique():
-    plot_dtw_allseeds(models, func)
-    auxIDX+=1
-plt.show()
+sys.argv = sys.argv if len(sys.argv)>=2 else [sys.argv[0],'gen','']
+def main():
+    if sys.argv[1]=='gen':
+        # compare the seeds of the gen decompositions
+        s0=pd.read_csv('results/decomps/gen/res-gen-s0.csv')
+        s1=pd.read_csv('results/decomps/gen/res-gen-s1.csv')
+        s2=pd.read_csv('results/decomps/gen/res-gen-s2.csv')
+        s0means = s0.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+        s1means = s1.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+        s2means = s2.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+        if sys.argv[2]=='multilingual':
+            sla=pd.read_csv('results/decomps/gen/res-gen.sla-eng.csv')
+            ine=pd.read_csv('results/decomps/gen/res-gen.ine-eng.csv')
+            mul=pd.read_csv('results/decomps/gen/res-gen.mul-eng.csv')
+            slameans = sla.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+            inemeans = ine.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+            mulmeans = mul.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+    elif ((sys.argv[1]=='no-gen') or (sys.argv[1]=='no gen') or (sys.argv[1]=='nogen')):
+        # gompare the seeds of no-gen decompositions
+        s0=pd.read_csv('results/decomps/no-gen/res-no-gen-s0.csv')
+        s0 = s0[s0.checkpoint <= 585000] # drop ckpts that are not form this model
+        s1=pd.read_csv('results/decomps/no-gen/res-no-gen-s1.csv')
+        s2=pd.read_csv('results/decomps/no-gen/res-no-gen-s2.csv')
+    elif ((sys.argv[1]=='both') or (sys.argv[1]=='gen-nogen')):
+        # compare gen vs no-gen series
+        s0=pd.read_csv('results/decomps/gen/res-gen-s0.csv')
+        s1=pd.read_csv('results/decomps/gen/res-gen-s1.csv')
+        s2=pd.read_csv('results/decomps/gen/res-gen-s2.csv')
+        ng0=pd.read_csv('results/decomps/no-gen/res-no-gen-s0.csv')
+        ng1=pd.read_csv('results/decomps/no-gen/res-no-gen-s1.csv')
+        ng2=pd.read_csv('results/decomps/no-gen/res-no-gen-s2.csv')
+        s0means = ng0.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+        s1means = ng1.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+        s2means = ng2.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+        ng0means = g0.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+        ng1means = g1.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+        ng2means = g2.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
 
+
+
+
+    global auxIDX # aux in naming the Figure windows
+    auxIDX = 1
+    if not ((sys.argv[1]=='both') or (sys.argv[1]=='gen-nogen')):
+        plot_series_by_ind_and_layer(s0means,seed=1111)
+        auxIDX += 1
+        plot_series_by_ind_and_layer(s1means,seed=1989)
+        auxIDX += 1
+        plot_series_by_ind_and_layer(s2means,seed=20232)
+
+        auxIDX = 1
+        for func in s0means.func.unique():
+            figure  = scatter_2seeds(s0means, '1111', s1means, '1988', func)
+            scatter_2seeds(s0means, '1111', s2means, '20232', func, overlapfig=figure)
+            scatter_2seeds(s1means, '1989', s2means, '20232', func, overlapfig=figure)
+            auxIDX+=1
+            #savefig... (f'RUS-ENG_SCATTERseeds_{func}.pdf') <- need the right size
+
+        #   ATTEMPT: Dynamic Time Warp
+        if sys.argv[2]=='multilingual':
+            models  ={'m1': {'df':s0means.copy(), 'modname':'rus-eng s1'},
+                  'm2': {'df':s1means.copy(), 'modname':'rus-eng s2'},
+                  'm3': {'df':s2means.copy(), 'modname':'rus-eng s3'},
+                  'sla': {'df':slameans.copy(), 'modname':'sla-eng'},
+                  'ine': {'df':inemeans.copy(), 'modname':'ine-eng'},
+                  'mul': {'df':mulmeans.copy(), 'modname':'mul-eng'},}
+        else:
+            models  ={'m1': {'df':s0means.copy(), 'modname':'rus-eng s1'},
+                  'm2': {'df':s1means.copy(), 'modname':'rus-eng s2'},
+                  'm3': {'df':s2means.copy(), 'modname':'rus-eng s3'},}
+
+        dfdist = pd.DataFrame(columns=['model1','model2', 'metric','component', 'layer0', 'layer1', 'layer2', 'layer3', 'layer4', 'layer5', 'layer6'])
+        for func in s0means.func.unique():
+            for comp in ['I', 'S', 'T', 'F', 'C']:
+                print(func,comp)
+                dfdist = plot_dtw_allseeds(models, dfdist, func, comp, sys.argv[2]=='multilingual')
+                auxIDX+=1
+        dfdist.to_csv('results/DTWdistances-res-gen.csv', index=False)
+        import ipdb; ipdb.set_trace()
+        
+        plt.show()
+
+
+    
+
+if __name__ == '__main__':
+    main()
 """
 FAILED ATTEMPT: Pearson correlation & rolling-window version of it... 
                 failed bc the homoscedasticity assumption does not hold
@@ -202,3 +233,4 @@ regr2.fit(x,residuals2)
 # Calculate the Chi-Square test statistic X2 as num_observs * R2 (R2 is coef of determination of regr2)
 r2 = regr2.score(x,residuals2) 
 """
+
