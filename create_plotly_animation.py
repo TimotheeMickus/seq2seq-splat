@@ -8,6 +8,7 @@ import pandas as pd
 parser = argparse.ArgumentParser()
 parser.add_argument('file', type=pathlib.Path)
 parser.add_argument('func', choices=['spim', 'cosine', 'norm_ratio', 'l2'])
+parser.add_argument('--oh-schuler', action='store_true')
 args = parser.parse_args()
 
 dataset = pd.read_csv(args.file)
@@ -22,6 +23,9 @@ ckpts = dataset.checkpoint.unique().tolist()[every-1::every]
 
 # make list of continents
 terms = list('ISTFC')
+if args.oh_schuler:
+    terms = list('STC')
+
 # make figure
 fig_dict = {
     "data": [],
@@ -31,8 +35,8 @@ fig_dict = {
 
 # fill in most of layout
 fig_dict["layout"]["xaxis"] = {"range": [-0.15,6.15], "title": "layer"}
-lo = min((dataset[f'mean {t}'] - dataset[f'std {t}']).min() for t in 'ISTFC')
-hi = max((dataset[f'mean {t}'] + dataset[f'std {t}']).max() for t in 'ISTFC')
+lo = min((dataset[f'mean {t}'] - dataset[f'std {t}']).min() for t in terms)
+hi = max((dataset[f'mean {t}'] + dataset[f'std {t}']).max() for t in terms)
 extra = (hi - lo) * 5 / 100
 fig_dict["layout"]["yaxis"] = {"range": [lo - extra, hi + extra], "title": func}
 # fig_dict["layout"]["hovermode"] = "closest"
