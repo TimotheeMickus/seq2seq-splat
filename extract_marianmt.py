@@ -68,8 +68,8 @@ class Decomposer():
 
     def __call__(self, src_sent, tgt_sent, last_layer_only=True):
         model, tokenizer, device = self.model.model, self.tokenizer, self.device
-        inputs_src = tokenizer([src_sent], return_tensors='pt').to(device)
-        inputs_tgt = tokenizer([tgt_sent], return_tensors='pt').to(device)
+        inputs_src = tokenizer([src_sent], return_tensors='pt', truncation=True).to(device)
+        inputs_tgt = tokenizer([tgt_sent], return_tensors='pt', truncation=True).to(device)
         encoder_outputs = model.encoder(**inputs_src).last_hidden_state
         input_shape = inputs_tgt.input_ids.size()
         decoder = model.decoder
