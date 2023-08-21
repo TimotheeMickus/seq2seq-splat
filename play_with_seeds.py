@@ -3,8 +3,90 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from dtw import dtw,accelerated_dtw
+from statsmodels.tsa.stattools import grangercausalitytests, adfuller
 import scipy.stats as stats
 
+def read_datasets():
+    """ Returns a dictionary with the read data structures. """
+    datadict={x:{'gen':[],'non-gen':[]} for x in ['s0','s1','s2','sla','ine','mul']}
+    if sys.argv[1]=='gen':
+        generative=True
+        # compare the seeds of the gen decompositions
+        s0=pd.read_csv('results/decomps/gen/res-gen-s0.csv')
+        s1=pd.read_csv('results/decomps/gen/res-gen-s1.csv')
+        s2=pd.read_csv('results/decomps/gen/res-gen-s2.csv')
+        s0means = s0.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+        s1means = s1.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+        s2means = s2.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+        if sys.argv[2]=='multilingual':
+            sla=pd.read_csv('results/decomps/gen/res-gen.sla-eng.csv')
+            ine=pd.read_csv('results/decomps/gen/res-gen.ine-eng.csv')
+            mul=pd.read_csv('results/decomps/gen/res-gen.mul-eng.csv')
+            slameans = sla.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+            inemeans = ine.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+            mulmeans = mul.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+    elif ((sys.argv[1]=='no-gen') or (sys.argv[1]=='no gen') or (sys.argv[1]=='nogen')):
+        generative=False
+        # gompare the seeds of no-gen decompositions
+        s0=pd.read_csv('results/decomps/no-gen/res-no-gen-s0.csv')
+        #s0 = s0[s0.checkpoint <= 585000] # drop ckpts that are not form this model
+        s1=pd.read_csv('results/decomps/no-gen/res-no-gen-s1.csv')
+        s2=pd.read_csv('results/decomps/no-gen/res-no-gen-s2.csv')
+    elif ((sys.argv[1]=='both') or (sys.argv[1]=='gen-nogen')):
+        generative='both'
+        # compare gen vs no-gen series
+        s0=pd.read_csv('results/decomps/gen/res-gen-s0.csv')
+        s1=pd.read_csv('results/decomps/gen/res-gen-s1.csv')
+        s2=pd.read_csv('results/decomps/gen/res-gen-s2.csv')
+        ng0=pd.read_csv('results/decomps/no-gen/res-no-gen-s0.csv')
+        ng1=pd.read_csv('results/decomps/no-gen/res-no-gen-s1.csv')
+        ng2=pd.read_csv('results/decomps/no-gen/res-no-gen-s2.csv')
+        s0means = ng0.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+        s1means = ng1.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+        s2means = ng2.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+        ngs0means = ng0.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+        ngs1means = ng1.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+        ngs2means = ng2.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+        if sys.argv[2]=='multilingual':
+            sla = pd.read_csv('results/decomps/gen/res-gen.sla-eng.csv')
+            ine = pd.read_csv('results/decomps/gen/res-gen.ine-eng.csv')
+            mul = pd.read_csv('results/decomps/gen/res-gen.mul-eng.csv')
+            ngsla=pd.read_csv('results/decomps/no-gen/res-no-gen.sla-eng.csv')
+            ngine=pd.read_csv('results/decomps/no-gen/res-no-gen.ine-eng.csv')
+            ngmul=pd.read_csv('results/decomps/no-gen/res-no-gen.mul-eng.csv')
+            slameans = sla.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+            inemeans = ine.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+            mulmeans = mul.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+            ngslameans = ngsla.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+            nginemeans = ngine.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+            ngmulmeans = ngmul.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+
+    normalize=True
+    ZN=""
+    if normalize:
+        ZN=" normalized"
+        s0means = Znormalize(s0means)
+        s1means = Znormalize(s1means)
+        s2means = Znormalize(s2means)
+        if generative =='both':
+            ngs0means = Znormalize(ngs0means)
+            ngs1means = Znormalize(ngs1means)
+            ngs2means = Znormalize(ngs2means)
+        if multilingual:
+            slameans = Znormalize(slameans)
+            inemeans = Znormalize(inemeans)
+            mulmeans = Znormalize(mulmeans)
+            if generative =='both':
+                ngslameans = Znormalize(ngslameans)
+                nginemeans = Znormalize(nginemeans)
+                ngmulmeans = Znormalize(ngmulmeans)
+
+    for name in ['s0','s1','s2','sla','ine','mul']:
+        datadict[name]['gen'] = eval(name+'means')
+        if generative=='both':
+            datadict[name]['non-gen'] = eval('ng'+name+'means')
+
+    return (generative,normalize),datadict
 
 def plot_series_by_ind_and_layer(s, seed, modname:str()='rus-eng', functions:list()=None):
     '''
@@ -28,9 +110,6 @@ def plot_series_by_ind_and_layer(s, seed, modname:str()='rus-eng', functions:lis
 
     currax.legend(bbox_to_anchor=(1.64, 4),title='layer')
 
-
-
-
 def scatter_2seeds(s1, seed1:str(), s2, seed2:str(), f:str(), overlapfig:tuple()=(None,None)):
     '''
     make scatter plots matrix comparing two seeds
@@ -48,7 +127,7 @@ def scatter_2seeds(s1, seed1:str(), s2, seed2:str(), f:str(), overlapfig:tuple()
         fig.suptitle(f'Scatter plots of {f} for rus-eng models with all three seeds')
 
     else:
-        fig, ax = plt.subplots(nrows=len(components), ncols=nlayers, num=f'scatter{auxIDX} metric:{f}')
+        fig, ax = plt.subplots(nrows=len(components), ncols=(nlayers-1), num=f'scatter{auxIDX} metric:{f}')
         fig.suptitle(f'Scatter of {f} for rus-eng models with seeds: {seed1} & {seed2}')
 
     for i,comp in enumerate(components):
@@ -61,7 +140,7 @@ def scatter_2seeds(s1, seed1:str(), s2, seed2:str(), f:str(), overlapfig:tuple()
         for j in range(1,nlayers):
             n = min(len(df[j]),len( df2[j]))
 
-            currax= ax[i][j]
+            currax= ax[i][j-1]
             #dots = currax.scatter(df[j][:n],df2[j][:n], alpha=0.5, label=f'seed {seed1} vs seed {seed2}')
             dots = currax.plot(df[j][:n].to_numpy(),df2[j][:n].to_numpy(), alpha=0.5, label=f'seed {seed1} vs seed {seed2}')
             #currax.get_legend().remove()
@@ -74,9 +153,6 @@ def scatter_2seeds(s1, seed1:str(), s2, seed2:str(), f:str(), overlapfig:tuple()
     currax.legend(bbox_to_anchor=(2, 3.5))
     
     return fig,ax
-
-
-
 
 def plot_dtw_allseeds(models:dict(), distances:pd.DataFrame(), metric:str(), comp:str(), multilingual=False):
     nlayers=7
@@ -113,10 +189,8 @@ def plot_dtw_allseeds(models:dict(), distances:pd.DataFrame(), metric:str(), com
                     currax.set_title(f'layer {j}')
                     currax.text(50, 500, f'distance: {np.round(d,3)}', 
                      bbox=dict(fill=True, color='gray'))
-            
-        distances = distances.append(pd.DataFrame([dlist], columns=distances.columns))
+        distances = pd.concat([distances, pd.DataFrame([dlist], columns=distances.columns)])
     return distances
-
 
 def Znormalize(df:pd.DataFrame()):
     # z-normalize a given dataframe
@@ -209,8 +283,8 @@ def permutation_and_U_tests(df):
     #H0reject is EMPTY in this case -> there is no sufficient evidence to reject the H0: "the two samples come from the same distribution"
     print(f"CASE 1 -   Utest: the null hypothesis is rejected on {len(uH0reject)} our of the {len(uH0reject)+len(uH0notreject)} times. They are:")
     print(f"   - Permutation: the null hypothesis is rejected on {len(permH0reject)} our of the {len(permH0reject)+len(permH0notreject)} times. They are:")
-    #for rej in H0reject:
-    #    print(rej)
+    for rej in permH0reject:
+        print(rej)
     uH0reject, uH0notreject=[],[]
     permH0reject, permH0notreject=[],[]
     for func in df.metric.unique():
@@ -227,8 +301,8 @@ def permutation_and_U_tests(df):
     #H0reject is EMPTY in this case -> there is no sufficient evidence to reject the H0: "the two samples come from the same distribution"
     print(f"CASE 2 -   Utest: the null hypothesis is rejected on {len(uH0reject)} our of the {len(uH0reject)+len(uH0notreject)} times. They are:")
     print(f"   - Permutation: the null hypothesis is rejected on {len(permH0reject)} our of the {len(permH0reject)+len(permH0notreject)} times. They are:")
-    #for rej in H0reject:
-    #    print(rej)
+    for rej in permH0reject:
+        print(rej)
 
     uH0reject, uH0notreject=[],[]
     permH0reject, permH0notreject=[],[]
@@ -247,10 +321,11 @@ def permutation_and_U_tests(df):
     #H0reject is EMPTY in this case -> there is no sufficient evidence to reject the H0: "the two samples come from the same distribution"
     print(f"CASE 3 -   Utest: the null hypothesis is rejected on {len(uH0reject)} our of the {len(uH0reject)+len(uH0notreject)} times. They are:")
     print(f"   - Permutation: the null hypothesis is rejected on {len(permH0reject)} our of the {len(permH0reject)+len(permH0notreject)} times. They are:")
-    #for rej in H0reject:
-    #    print(rej)
+    for rej in permH0reject:
+        print(rej)
 
-    H0reject, H0notreject=[],[]
+    uH0reject, uH0notreject=[],[]
+    permH0reject, permH0notreject=[],[]
     for func in df.metric.unique():
         for comp in ['I', 'S', 'T', 'F', 'C']:
             # CASE4: g1={DTWdist(si,sj) \forall seeds i,j } and g2={DTWdist(mult1,mult2) for multN in {mul,sla,ine}}
@@ -266,8 +341,8 @@ def permutation_and_U_tests(df):
     #H0reject is EMPTY in this case -> there is no sufficient evidence to reject the H0: "the two samples come from the same distribution"
     print(f"CASE 4 -   Utest: the null hypothesis is rejected on {len(uH0reject)} our of the {len(uH0reject)+len(uH0notreject)} times. They are:")
     print(f"   - Permutation: the null hypothesis is rejected on {len(permH0reject)} our of the {len(permH0reject)+len(permH0notreject)} times. They are:")
-    #for rej in H0reject:
-    #    print(rej)
+    for rej in permH0reject:
+        print(rej)
 
     uH0reject, uH0notreject=[],[]
     permH0reject, permH0notreject=[],[]
@@ -287,102 +362,110 @@ def permutation_and_U_tests(df):
     #H0reject is EMPTY in this case -> there is no sufficient evidence to reject the H0: "the two samples come from the same distribution"
     print(f"CASE 5 -   Utest: the null hypothesis is rejected on {len(uH0reject)} our of the {len(uH0reject)+len(uH0notreject)} times. They are:")
     print(f"   - Permutation: the null hypothesis is rejected on {len(permH0reject)} our of the {len(permH0reject)+len(permH0notreject)} times. They are:")
-    #for rej in H0reject:
-    #    print(rej)
+    for rej in permH0reject:
+        print(rej)
 
 
 
 sys.argv = sys.argv if len(sys.argv)>=2 else [sys.argv[0],'gen','']
 def main(multilingual=False):
-    if sys.argv[1]=='gen':
-        # compare the seeds of the gen decompositions
-        s0=pd.read_csv('results/decomps/gen/res-gen-s0.csv')
-        s1=pd.read_csv('results/decomps/gen/res-gen-s1.csv')
-        s2=pd.read_csv('results/decomps/gen/res-gen-s2.csv')
-        s0means = s0.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-        s1means = s1.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-        s2means = s2.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-        if sys.argv[2]=='multilingual':
-            sla=pd.read_csv('results/decomps/gen/res-gen.sla-eng.csv')
-            ine=pd.read_csv('results/decomps/gen/res-gen.ine-eng.csv')
-            mul=pd.read_csv('results/decomps/gen/res-gen.mul-eng.csv')
-            slameans = sla.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-            inemeans = ine.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-            mulmeans = mul.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-    elif ((sys.argv[1]=='no-gen') or (sys.argv[1]=='no gen') or (sys.argv[1]=='nogen')):
-        # gompare the seeds of no-gen decompositions
-        s0=pd.read_csv('results/decomps/no-gen/res-no-gen-s0.csv')
-        s0 = s0[s0.checkpoint <= 585000] # drop ckpts that are not form this model
-        s1=pd.read_csv('results/decomps/no-gen/res-no-gen-s1.csv')
-        s2=pd.read_csv('results/decomps/no-gen/res-no-gen-s2.csv')
-    elif ((sys.argv[1]=='both') or (sys.argv[1]=='gen-nogen')):
-        # compare gen vs no-gen series
-        s0=pd.read_csv('results/decomps/gen/res-gen-s0.csv')
-        s1=pd.read_csv('results/decomps/gen/res-gen-s1.csv')
-        s2=pd.read_csv('results/decomps/gen/res-gen-s2.csv')
-        ng0=pd.read_csv('results/decomps/no-gen/res-no-gen-s0.csv')
-        ng1=pd.read_csv('results/decomps/no-gen/res-no-gen-s1.csv')
-        ng2=pd.read_csv('results/decomps/no-gen/res-no-gen-s2.csv')
-        s0means = ng0.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-        s1means = ng1.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-        s2means = ng2.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-        ng0means = g0.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-        ng1means = g1.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-        ng2means = g2.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+    (generative,normalize), datadict = read_datasets()
 
 
-
-    normalize=True
-    ZN=""
-    if normalize:
-        ZN=" normalized"
-        s0means = Znormalize(s0means)
-        s1means = Znormalize(s1means)
-        s2means = Znormalize(s2means)
-        if multilingual:
-            slameans = Znormalize(slameans)
-            inemeans = Znormalize(slameans)
-            mulmeans = Znormalize(slameans)
     global auxIDX # aux in naming the Figure windows
     auxIDX = 1
-    if not ((sys.argv[1]=='both') or (sys.argv[1]=='gen-nogen')):
+    if not (generative=='both'):
         if False:
-            plot_series_by_ind_and_layer(s0means,seed=str(1111)+ZN)
+            plot_series_by_ind_and_layer(datadict['s0']['gen'],seed=str(1111)+ZN)
             auxIDX += 1
-            plot_series_by_ind_and_layer(s1means,seed=str(1989)+ZN)
+            plot_series_by_ind_and_layer(datadict['s1']['gen'],seed=str(1989)+ZN)
             auxIDX += 1
-            plot_series_by_ind_and_layer(s2means,seed=str(20232)+ZN)
+            plot_series_by_ind_and_layer(datadict['s2']['gen'],seed=str(20232)+ZN)
             if multilingual:
                 auxIDX += 1
-                plot_series_by_ind_and_layer(slameans,seed=ZN, modname='sla-eng')
+                plot_series_by_ind_and_layer(datadict['sla']['gen'],seed=ZN, modname='sla-eng')
                 auxIDX += 1
-                plot_series_by_ind_and_layer(inemeans,seed=ZN, modname='ine-eng')
+                plot_series_by_ind_and_layer(datadict['ine']['gen'],seed=ZN, modname='ine-eng')
                 auxIDX += 1
-                plot_series_by_ind_and_layer(mulmeans,seed=ZN, modname='mul-eng')
+                plot_series_by_ind_and_layer(datadict['mul']['gen'],seed=ZN, modname='mul-eng')
 
             plt.show()
         auxIDX = 1
-        for func in s0means.func.unique():
-            figure  = scatter_2seeds(s0means, '1111', s1means, '1988', func)
-            scatter_2seeds(s0means, '1111', s2means, '20232', func, overlapfig=figure)
-            scatter_2seeds(s1means, '1989', s2means, '20232', func, overlapfig=figure)
-            auxIDX+=1
+        for func in datadict['s0']['gen'].func.unique():
+            figure  = scatter_2seeds(datadict['s0']['gen'], '1111', datadict['s1']['gen'], '1988', func)
+            scatter_2seeds(datadict['s0']['gen'], '1111', datadict['s2']['gen'], '20232', func, overlapfig=figure)
+            scatter_2seeds(datadict['s1']['gen'], '1989', datadict['s2']['gen'], '20232', func, overlapfig=figure)
+            if multilingual:    
+                scatter_2seeds(datadict['s0']['gen'], '1111', datadict['sla']['gen'], 'sla', func, overlapfig=figure)
+                scatter_2seeds(datadict['s0']['gen'], '1111', datadict['ine']['gen'], 'ine', func, overlapfig=figure)
+                scatter_2seeds(datadict['s0']['gen'], '1111', datadict['mul']['gen'], 'mul', func, overlapfig=figure)
+                auxIDX+=1
             #savefig... (f'RUS-ENG_SCATTERseeds_{func}.pdf') <- need the right size
 
+        # ATTEMPT: Granger causality tests
+        bleu = pd.read_csv(f'results/bleu-scores2.csv').sort_values('checkpoint')
+        bleu = bleu.set_index('checkpoint').sort_index()
+        # HUOM! This one is not being rendered for some reason...
+        bleu.groupby(['model'])['bleu'].plot(kind='line', legend=True, alpha=0.7)
+        #plt.show()  
+        #import ipdb; ipdb.set_trace()
+
+        grangertests=pd.DataFrame(columns=['model','layer','component','function','pval'])
+        for m1,pd1 in datadict.items():
+            m2 = f'{m1}-eng' if len(m1)>2 else f'rus-eng_{m1}'
+            for layer,func,comp in itertools.product(range(1,7),pd1['gen'].func.unique(),['I','S','T','F','C']):
+                s1  =pd1['gen'][(pd1['gen'].func==func)& (pd1['gen'].layer_idx==layer) ].set_index('checkpoint')[comp]
+                s2 = bleu[bleu.model==m2].bleu
+                # we use diff'd series becaudse TSs must be stationary to compute the Granger test. 
+                s1 = s1.diff().dropna()
+                s2 = s2[1:]
+                #s2 = s2.diff().dropna()
+
+                # ADFtest: Stationarity - H0:TS is stationary(if failed to rejec => TS not stationary.)
+                warn = (adfuller(s1)[1]>=0.05, adfuller(s2)[1]>=0.05)
+                if any(warn):
+                    if sum(warn)==1:
+                        print(f'WARN: {["TS","bleu"][warn.index(True)]} mod={m1},comp={comp},layer={layer},fn.={func},  is NOT stationary: Granger test may not be valid.')
+                    else:
+                        print(f'WARN: TS and bleu BOTH are not stationary: Granger test may not be valid for:mod.={m1},comp={comp},fn.={func}, layer={layer}')
+                else:
+                    coso = pd.DataFrame((s1,s2)).T
+                    ## HUOM: 
+                    ##      There was a single missing BLEU: model=rus-eng_s0 step=489000 ... filled it by hand, comment followng lines:
+                    #if coso['bleu'].isna().sum() > 0:
+                    #    step=coso.bleu[coso.bleu.isna()==True].index.to_numpy()
+                    #    print(f"filling NAs with last observed value for mod {m1}(ckpt,comp,fn,layer={step},{comp},{layer},{func}):{coso.isna().sum()} ")
+                    #    coso = coso.fillna(method='ffill')
+                    testres= grangercausalitytests(coso[[comp,'bleu']], maxlag=15, verbose=False)
+                    test='ssr_chi2test'
+                    pvals=[round(testres[i+1][0][test][1],4) for i in range(15)]
+                    # (H0): Time series x(model,layer,func)=comp DOEN NOT Granger-cause time series y(model)=blue
+                    grangertests = grangertests.append(   pd.DataFrame([[m1,layer,comp,func,np.min(pvals)]], columns=grangertests.columns)   )   
+        print(f"""
+            Done {len(grangertests)} Granger-causality tests out of all {4*6*6*5}, using 
+                H0: Time series X(model,layer,func)=comp DOES NOT Granger-cause time series Y(model)=blue 
+                    forall model in {list(datadict)}, layer=1,...,6 ,func in {list(pd1['gen'].func.unique())} comp in [I,S,T,F,C]""")
+        print("Reject H0 in all cases BUT:",grangertests[grangertests.pval>0.05])
+        import ipdb; ipdb.set_trace()
         #   ATTEMPT: Dynamic Time Warp
         if sys.argv[2]=='multilingual':
-            dflen = min(len(s0means),len(s1means),len(s2means),len(slameans),len(inemeans),len(mulmeans))
-            models  ={'m1': {'df':s0means[:dflen].copy(), 'modname':'rus-eng s1'},
-                  'm2': {'df':s1means[:dflen].copy(), 'modname':'rus-eng s2'},
-                  'm3': {'df':s2means[:dflen].copy(), 'modname':'rus-eng s3'},
-                  'sla': {'df':slameans[:dflen].copy(), 'modname':'sla-eng'},
-                  'ine': {'df':inemeans[:dflen].copy(), 'modname':'ine-eng'},
-                  'mul': {'df':mulmeans[:dflen].copy(), 'modname':'mul-eng'},}
+            maxckpt = min(datadict['s0']['gen'].checkpoint.max(),
+                          datadict['s1']['gen'].checkpoint.max(),
+                          datadict['s2']['gen'].checkpoint.max(),
+                          datadict['sla']['gen'].checkpoint.max(),
+                          datadict['ine']['gen'].checkpoint.max(),
+                          datadict['mul']['gen'].checkpoint.max(),)
+            models  ={'m1': {'df':datadict['s0']['gen'][datadict['s0']['gen'].checkpoint <= maxckpt].copy(), 'modname':'rus-eng s1'},
+                    'm2'  : {'df':datadict['s1']['gen'][datadict['s1']['gen'].checkpoint <= maxckpt].copy(), 'modname':'rus-eng s2'},
+                    'm3'  : {'df':datadict['s2']['gen'][datadict['s2']['gen'].checkpoint <= maxckpt].copy(), 'modname':'rus-eng s3'},
+                    'sla': {'df':datadict['sla']['gen'][datadict['sla']['gen'].checkpoint <= maxckpt].copy(), 'modname':'sla-eng'},
+                    'ine': {'df':datadict['ine']['gen'][datadict['ine']['gen'].checkpoint <= maxckpt].copy(), 'modname':'ine-eng'},
+                    'mul': {'df':datadict['mul']['gen'][datadict['mul']['gen'].checkpoint <= maxckpt].copy(), 'modname':'mul-eng'},}
         else:
-            dflen = min(len(s0means),len(s1means),len(s2means))
-            models  ={'m1': {'df':s0means[:dflen].copy(), 'modname':'rus-eng s1'},
-                  'm2': {'df':s1means[:dflen].copy(), 'modname':'rus-eng s2'},
-                  'm3': {'df':s2means[:dflen].copy(), 'modname':'rus-eng s3'},}
+            maxckpt = min(datadict['s0']['gen'].checkpoint.max(),datadict['s1']['gen'].checkpoint.max(),datadict['s2']['gen'].checkpoint.max())
+            models  ={'m1': {'df':datadict['s0']['gen'][datadict['s0']['gen'].checkpoint <= maxckpt].copy(), 'modname':'rus-eng s1'},
+                    'm2'  : {'df':datadict['s1']['gen'][datadict['s1']['gen'].checkpoint <= maxckpt].copy(), 'modname':'rus-eng s2'},
+                    'm3'  : {'df':datadict['s2']['gen'][datadict['s2']['gen'].checkpoint <= maxckpt].copy(), 'modname':'rus-eng s3'},}
 
 
 
@@ -391,7 +474,7 @@ def main(multilingual=False):
         if os.path.exists(f'results/DTWdistances-res-gen{nom}.csv'):
             dfdist = pd.read_csv(f'results/DTWdistances-res-gen{nom}.csv')
         else:
-            for func in s0means.func.unique():
+            for func in datadict['s0']['gen'].func.unique():
                 for comp in ['I', 'S', 'T', 'F', 'C']:
                     print(func,comp)
                     dfdist = plot_dtw_allseeds(models, dfdist, func, comp, sys.argv[2]=='multilingual')
@@ -407,10 +490,37 @@ def main(multilingual=False):
         # PERFORM MannWhitney U-test to see if distance distributions are equivalent:
         permutation_and_U_tests(df)
 
-        import ipdb; ipdb.set_trace()
+        #import ipdb; ipdb.set_trace()
 
 
-    
+    else:
+        if False:
+            plot_series_by_ind_and_layer(datadict['s0']['gen'],seed=str(1111)+ZN)
+            auxIDX += 1
+            plot_series_by_ind_and_layer(datadict['s1']['gen'],seed=str(1989)+ZN)
+            auxIDX += 1
+            plot_series_by_ind_and_layer(datadict['s2']['gen'],seed=str(20232)+ZN)
+            if multilingual:
+                auxIDX += 1
+                plot_series_by_ind_and_layer(datadict['sla']['gen'],seed=ZN, modname='sla-eng')
+                auxIDX += 1
+                plot_series_by_ind_and_layer(datadict['ine']['gen'],seed=ZN, modname='ine-eng')
+                auxIDX += 1
+                plot_series_by_ind_and_layer(datadict['mul']['gen'],seed=ZN, modname='mul-eng')
+
+            plt.show()
+        auxIDX = 1
+        for func in datadict['s0']['gen'].func.unique():
+            figure  = scatter_2seeds(datadict['s0']['gen'], 's1', datadict['s0']['non-gen'], 'ng-s1', func)
+            scatter_2seeds(datadict['s1']['gen'], 's2', datadict['s1']['non-gen'], 'ng-s2', func, overlapfig=figure)
+            scatter_2seeds(datadict['s2']['gen'], 's3', datadict['s2']['non-gen'], 'ng-s3', func, overlapfig=figure)
+            scatter_2seeds(datadict['sla']['gen'], 'sla', datadict['sla']['non-gen'], 'ng-sla', func, overlapfig=figure)
+            scatter_2seeds(datadict['ine']['gen'], 'ine', datadict['ine']['non-gen'], 'ng-ine', func, overlapfig=figure)
+            scatter_2seeds(datadict['mul']['gen'], 'mul', datadict['mul']['non-gen'], 'ng-mul', func, overlapfig=figure)
+            auxIDX+=1
+            #savefig... (f'RUS-ENG_SCATTERseeds_{func}.pdf') <- need the right size
+        plt.show()
+        # ATTEMPT: Granger causality tests
 
 if __name__ == '__main__':
     multilingual = True if sys.argv[2]=='multilingual' else False

@@ -12,7 +12,7 @@ from utils import read_datasets
 
 def main(data,multilingual=False):
     generative, datadict = read_datasets(data, multilingual)
-    generativeOH, datadictOH = read_datasets(data, multilingual)
+    generativeOH, datadictOH = read_datasets(data, multilingual,oh_decomp=True)
     #infer = ['gen','no-gen'] if generative=='both' else [generative]
     bleu = pd.read_csv(f'results/bleu-scores2.csv').sort_values('checkpoint')
     bleu = bleu.set_index('checkpoint').sort_index()
