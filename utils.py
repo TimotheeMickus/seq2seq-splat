@@ -10,7 +10,8 @@ def Znormalize(df:pd.DataFrame()):
                       'func':[metric]*len(coso), 
                       'checkpoint':coso.checkpoint }
             for comp in ['I', 'S', 'T', 'F', 'C']:
-                cosonorm[comp]=(coso[comp].mean() - coso[comp])/coso[comp].std()
+                if coso.get(comp) is not None:
+                    cosonorm[comp]=(coso[comp].mean() - coso[comp])/coso[comp].std()
             
             normalized = pd.concat([normalized, pd.DataFrame(cosonorm)], ignore_index=True)
     return normalized
@@ -19,6 +20,9 @@ def read_datasets(dataset_name='both', multilingual=False,oh_decomp=False):
     """ Returns a dictionary with the MEANS of the read data structures. """
     decompname="-oh-schuler" if oh_decomp else ""
     auxstr=".rus-eng" if oh_decomp else ""
+    components = ['mean I','mean S','mean T','mean F','mean C'] if not(oh_decomp) else ['mean S','mean T','mean C']
+    newcols = {x:x.lstrip('mean ') for x in components}
+    readitems=['layer_idx', 'func', 'checkpoint']+components
     datadict={x:{'gen':[],'non-gen':[]} for x in ['s0','s1','s2','sla','ine','mul']}
     if dataset_name=='gen':
         generative=True
@@ -27,16 +31,16 @@ def read_datasets(dataset_name='both', multilingual=False,oh_decomp=False):
         s0=pd.read_csv(f'{datadir}/res{decompname}-gen.rus-eng-s0.csv')
         s1=pd.read_csv(f'{datadir}/res{decompname}-gen.rus-eng-s1.csv')
         s2=pd.read_csv(f'{datadir}/res{decompname}-gen.rus-eng-s2.csv')
-        s0means = s0.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-        s1means = s1.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-        s2means = s2.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+        s0means = s0.filter(items=readitems, axis=1).rename(columns=newcols)
+        s1means = s1.filter(items=readitems, axis=1).rename(columns=newcols)
+        s2means = s2.filter(items=readitems, axis=1).rename(columns=newcols)
         if multilingual:
             sla=pd.read_csv(f'{datadir}/res{decompname}-gen.sla-eng.csv')
             ine=pd.read_csv(f'{datadir}/res{decompname}-gen.ine-eng.csv')
             mul=pd.read_csv(f'{datadir}/res{decompname}-gen.mul-eng.csv')
-            slameans = sla.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-            inemeans = ine.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-            mulmeans = mul.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+            slameans = sla.filter(items=readitems, axis=1).rename(columns=newcols)
+            inemeans = ine.filter(items=readitems, axis=1).rename(columns=newcols)
+            mulmeans = mul.filter(items=readitems, axis=1).rename(columns=newcols)
     elif ((dataset_name=='no-gen') or (dataset_name=='no gen') or (dataset_name=='nogen')):
         generative=False
         datadir=f"results/decomps{decompname}/no-gen"
@@ -55,12 +59,12 @@ def read_datasets(dataset_name='both', multilingual=False,oh_decomp=False):
         ng0=pd.read_csv(f'{datadir}/no-gen/res{decompname}-no-gen.rus-eng-s0.csv')
         ng1=pd.read_csv(f'{datadir}/no-gen/res{decompname}-no-gen.rus-eng-s1.csv')
         ng2=pd.read_csv(f'{datadir}/no-gen/res{decompname}-no-gen.rus-eng-s2.csv')
-        s0means = ng0.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-        s1means = ng1.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-        s2means = ng2.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-        ngs0means = ng0.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-        ngs1means = ng1.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-        ngs2means = ng2.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+        s0means = ng0.filter(items=readitems, axis=1).rename(columns=newcols)
+        s1means = ng1.filter(items=readitems, axis=1).rename(columns=newcols)
+        s2means = ng2.filter(items=readitems, axis=1).rename(columns=newcols)
+        ngs0means = ng0.filter(items=readitems, axis=1).rename(columns=newcols)
+        ngs1means = ng1.filter(items=readitems, axis=1).rename(columns=newcols)
+        ngs2means = ng2.filter(items=readitems, axis=1).rename(columns=newcols)
         if multilingual:
             sla = pd.read_csv(f'{datadir}gen/res{decompname}-gen.sla-eng.csv')
             ine = pd.read_csv(f'{datadir}gen/res{decompname}-gen.ine-eng.csv')
@@ -68,12 +72,12 @@ def read_datasets(dataset_name='both', multilingual=False,oh_decomp=False):
             ngsla=pd.read_csv(f'{datadir}no-gen/res{decompname}-no-gen.sla-eng.csv')
             ngine=pd.read_csv(f'{datadir}no-gen/res{decompname}-no-gen.ine-eng.csv')
             ngmul=pd.read_csv(f'{datadir}no-gen/res{decompname}-no-gen.mul-eng.csv')
-            slameans = sla.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-            inemeans = ine.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-            mulmeans = mul.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-            ngslameans = ngsla.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-            nginemeans = ngine.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
-            ngmulmeans = ngmul.filter(items=['layer_idx', 'func', 'mean I', 'mean S', 'mean T', 'mean F', 'mean C', 'checkpoint'], axis=1).rename(columns={'mean I':'I', 'mean S':'S', 'mean T':'T', 'mean F':'F', 'mean C':'C'})
+            slameans = sla.filter(items=readitems, axis=1).rename(columns=newcols)
+            inemeans = ine.filter(items=readitems, axis=1).rename(columns=newcols)
+            mulmeans = mul.filter(items=readitems, axis=1).rename(columns=newcols)
+            ngslameans = ngsla.filter(items=readitems, axis=1).rename(columns=newcols)
+            nginemeans = ngine.filter(items=readitems, axis=1).rename(columns=newcols)
+            ngmulmeans = ngmul.filter(items=readitems, axis=1).rename(columns=newcols)
 
     # LEGACY:
     #normalize=True

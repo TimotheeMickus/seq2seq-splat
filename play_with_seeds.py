@@ -3,9 +3,10 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from dtw import dtw,accelerated_dtw
-from statsmodels.tsa.stattools import grangercausalitytests, adfuller
+from statsmodels.tsa.stattools import grangercausalitytests, adfuller, kpss
 import scipy.stats as stats
-
+import warnings 
+warnings.simplefilter("ignore")
 def read_datasets():
     """ Returns a dictionary with the read data structures. """
     datadict={x:{'gen':[],'non-gen':[]} for x in ['s0','s1','s2','sla','ine','mul']}
@@ -145,7 +146,7 @@ def scatter_2seeds(s1, seed1:str(), s2, seed2:str(), f:str(), overlapfig:tuple()
             dots = currax.plot(df[j][:n].to_numpy(),df2[j][:n].to_numpy(), alpha=0.5, label=f'seed {seed1} vs seed {seed2}')
             #currax.get_legend().remove()
 
-            if j==0:
+            if j==1:
                 currax.set_ylabel(f'{comp}', weight='bold')
             if i==0:
                 currax.set_title(f'Layer {j}')
@@ -154,7 +155,7 @@ def scatter_2seeds(s1, seed1:str(), s2, seed2:str(), f:str(), overlapfig:tuple()
     
     return fig,ax
 
-def plot_dtw_allseeds(models:dict(), distances:pd.DataFrame(), metric:str(), comp:str(), multilingual=False):
+def plot_dtw_allseeds(models:dict(), distances:pd.DataFrame(), metric:str(), comp:str(), multilingual=False,doplots=False):
     nlayers=7
     #fig, ax = plt.subplots(nrows=len(models), ncols=nlayers, num=f'DTW{auxIDX} metric{metric} component{comp}')
     #fig.suptitle(f'DTW Minimum Path comparison across seeds \n metric:{metric} and component:{comp}')
@@ -178,7 +179,7 @@ def plot_dtw_allseeds(models:dict(), distances:pd.DataFrame(), metric:str(), com
             d2 = df2[j].values
             d, cost_matrix, acc_cost_matrix, path = accelerated_dtw(d1,d2, dist='euclidean')
             dlist.append(d)
-            if False:
+            if doplots:
                 currax = ax[i][j]
                 currax.imshow(acc_cost_matrix.T, origin='lower', interpolation='nearest')
                 currax.plot(path[0], path[1], 'w')
@@ -208,31 +209,54 @@ def Znormalize(df:pd.DataFrame()):
     return normalized
 
 def plotDTWheatmaps(df):
-    fig, ax = plt.subplots(nrows=len(df.metric.unique()), ncols=3)
+    models = ['s1', 's2', 's3','sla','ine','mul']
+    fig, ax = plt.subplots(nrows=len(df.metric.unique()), ncols=len(models), constrained_layout=True)
     for i,func in enumerate(df.metric.unique()):
-        for j,seed in enumerate(['s1', 's2', 's3']):
+        for j,seed in enumerate(models):
             currax = ax[i][j]
-            coso = df[((df.metric==func)  & ((df.model2==f'rus-eng {seed}') | (df.model1==f'rus-eng {seed}') ))]# & (df.component!='C')]
+            if len(seed) == 2:
+                coso = df[((df.metric==func)  & ((df.model2==f'rus-eng {seed}') | (df.model1==f'rus-eng {seed}') ))]# & (df.component!='C')]
+                plttitle = f'DTW dist. to rus-eng seed {seed}'
+            else:
+                coso = df[((df.metric==func)  & ((df.model2==f'{seed}-eng') | (df.model1==f'{seed}-eng') ))]# & (df.component!='C')]
+                plttitle = f'DTW dist. to {seed}-eng'
+
             currax.imshow(coso.iloc[:,-6:].T)
-            #xlabels =  [f"{i} \t{j.split(' ')[-1].split('-')[0]}-{k.split(' ')[-1].split('-')[0]}".expandtabs() for i,j,k in zip(coso.component,coso.model1,coso.model2)]
-            #xlabels = [f"{k} {l.split(' ')[-1].split('-')[0]}-{m.split(' ')[-1].split('-')[0]}" for k,l,m in zip(coso.component,coso.model1,coso.model2)]
-            xlabels = [f"{k} {l.split(' ')[-1].split('-')[0]}" for k,l in zip(coso.component,coso.model1)]
-            for idx,x in enumerate(xlabels):
-                if x.find(seed) > 0 :
-                    xlabels[idx] = x.split(' ')[0]+' s'+str((int(seed.lstrip('s'))+1)%4)
+            xlabels = [f"{k} {l.split(' ')[-1].split('-')[0]} {m.split(' ')[-1].split('-')[0]}".replace(f' {seed}','') for k,l,m in zip(coso.component,coso.model1,coso.model2)]
             currax.set_xticks([i for i in range(len(coso))])
             currax.set_xticklabels(['']*len(coso))
             #currax.set_yticklabels(["","2","","4","","6"])
             if j==0:
                 currax.set_ylabel(func)
             if i==0:
-                currax.set_title(f'DTW dist. to rus-eng seed {seed}')
+                currax.set_title(plttitle)
             if i==(len(df.metric.unique())-1):
                 #currax.set_yticks([1,2,3,4,5,6])
                 #currax.set_yticklabels(["","2","","4","","6"])
                 currax.set_xlabel('COMPONENT  distance-to-model')
                 currax.set_xticklabels(xlabels)
                 currax.xaxis.set_tick_params(rotation=90)
+    
+    fig, ax = plt.subplots(ncols=1, nrows=len(models), constrained_layout=True)
+    for j,seed in enumerate(models):
+        currax = ax[j]
+        if len(seed) == 2:
+            coso = df[( ((df.model2==f'rus-eng {seed}') | (df.model1==f'rus-eng {seed}') ))]
+            plttitle = f'DTW dist. to rus-eng seed {seed}'
+        else:   
+            coso = df[( ((df.model2==f'{seed}-eng') | (df.model1==f'{seed}-eng') ))]
+            plttitle = f'DTW dist. to {seed}-eng'
+        currax.imshow(coso.iloc[:,-6:].T)
+        xlabels = [f"{k} {l.split(' ')[-1].split('-')[0]}-{m.split(' ')[-1].split('-')[0]}" for k,l,m in zip(coso.component,coso.model1,coso.model2)]
+        currax.set_xticks([i for i in range(len(coso))])
+        currax.set_xticklabels(['']*len(coso))
+        currax.set_ylabel(plttitle)
+
+        if j == len(models)-1:
+            currax.set_xticklabels(xlabels)
+            currax.xaxis.set_tick_params(rotation=90)
+            currax.set_xlabel('COMPONENT  distance-to-model')
+
 
 def do_tests(g1,g2,func,comp,seed=""):
     uH0reject, uH0notreject=[],[]
@@ -368,7 +392,7 @@ def permutation_and_U_tests(df):
 
 
 sys.argv = sys.argv if len(sys.argv)>=2 else [sys.argv[0],'gen','']
-def main(multilingual=False):
+def main(multilingual=False,ZN=" normalized" ):
     (generative,normalize), datadict = read_datasets()
 
 
@@ -390,63 +414,67 @@ def main(multilingual=False):
                 plot_series_by_ind_and_layer(datadict['mul']['gen'],seed=ZN, modname='mul-eng')
 
             plt.show()
-        auxIDX = 1
-        for func in datadict['s0']['gen'].func.unique():
-            figure  = scatter_2seeds(datadict['s0']['gen'], '1111', datadict['s1']['gen'], '1988', func)
-            scatter_2seeds(datadict['s0']['gen'], '1111', datadict['s2']['gen'], '20232', func, overlapfig=figure)
-            scatter_2seeds(datadict['s1']['gen'], '1989', datadict['s2']['gen'], '20232', func, overlapfig=figure)
-            if multilingual:    
-                scatter_2seeds(datadict['s0']['gen'], '1111', datadict['sla']['gen'], 'sla', func, overlapfig=figure)
-                scatter_2seeds(datadict['s0']['gen'], '1111', datadict['ine']['gen'], 'ine', func, overlapfig=figure)
-                scatter_2seeds(datadict['s0']['gen'], '1111', datadict['mul']['gen'], 'mul', func, overlapfig=figure)
-                auxIDX+=1
-            #savefig... (f'RUS-ENG_SCATTERseeds_{func}.pdf') <- need the right size
+        
+            auxIDX = 1
+            for func in datadict['s0']['gen'].func.unique():
+                figure  = scatter_2seeds(datadict['s0']['gen'], '1111', datadict['s1']['gen'], '1988', func)
+                scatter_2seeds(datadict['s0']['gen'], '1111', datadict['s2']['gen'], '20232', func, overlapfig=figure)
+                scatter_2seeds(datadict['s1']['gen'], '1989', datadict['s2']['gen'], '20232', func, overlapfig=figure)
+                if multilingual:    
+                    scatter_2seeds(datadict['s0']['gen'], '1111', datadict['sla']['gen'], 'sla', func, overlapfig=figure)
+                    scatter_2seeds(datadict['s0']['gen'], '1111', datadict['ine']['gen'], 'ine', func, overlapfig=figure)
+                    scatter_2seeds(datadict['s0']['gen'], '1111', datadict['mul']['gen'], 'mul', func, overlapfig=figure)
+                    auxIDX+=1
+                #savefig... (f'RUS-ENG_SCATTERseeds_{func}.pdf') <- need the right size
+            
+            plt.show()
 
-        # ATTEMPT: Granger causality tests
         bleu = pd.read_csv(f'results/bleu-scores2.csv').sort_values('checkpoint')
         bleu = bleu.set_index('checkpoint').sort_index()
-        # HUOM! This one is not being rendered for some reason...
-        bleu.groupby(['model'])['bleu'].plot(kind='line', legend=True, alpha=0.7)
-        #plt.show()  
-        #import ipdb; ipdb.set_trace()
+        fig, ax = plt.subplots(nrows=1,ncols=2)
+        bleu.groupby(['model'])['bleu'].plot(kind='line', legend=True, alpha=0.7, ax=ax[0])
+        ax[0].set_title("BLEU scores over all trianing")
 
-        grangertests=pd.DataFrame(columns=['model','layer','component','function','pval'])
+
+        bleu = bleu[bleu.index>100000]        
+        bleu.groupby(['model'])['bleu'].plot(kind='line', legend=True, alpha=0.7,  ax=ax[1])
+        ax[1].set_title("BLEU scores achived after 100k steps")
+        plt.show()
+
+        # Spearmann correlations
+        bleu = pd.read_csv(f'results/bleu-scores2.csv').sort_values('checkpoint')
+        bleu = bleu.set_index('checkpoint').sort_index()
         for m1,pd1 in datadict.items():
             m2 = f'{m1}-eng' if len(m1)>2 else f'rus-eng_{m1}'
-            for layer,func,comp in itertools.product(range(1,7),pd1['gen'].func.unique(),['I','S','T','F','C']):
-                s1  =pd1['gen'][(pd1['gen'].func==func)& (pd1['gen'].layer_idx==layer) ].set_index('checkpoint')[comp]
-                s2 = bleu[bleu.model==m2].bleu
-                # we use diff'd series becaudse TSs must be stationary to compute the Granger test. 
-                s1 = s1.diff().dropna()
-                s2 = s2[1:]
-                #s2 = s2.diff().dropna()
+            s2 = bleu[bleu.model==m2].bleu
+            #s2 = s2[s2.index>100000]
+            #s2 = s2.diff().dropna()
+            ## Plot the BLEU scores of 2nd order differences trends
+            #plt.plot(s2.rolling(100).mean(), label=m2+"1stDIFFs")
+            #s2 = s2.diff().dropna()
+            ## Plot the BLEU scores of 2nd order differences trends
+            #plt.plot(s2.rolling(100).mean(), label=m2+"2ndDIFFs")            
+            
+            fig, ax = plt.subplots(nrows=5,ncols=6)
+            fig.suptitle(f'Scatter plot: model {m1} BLEU VS TSs')
+            funcs=pd1['gen'].func.unique().tolist()
+            for layer,func in itertools.product(range(1,7),funcs):
+                for i,comp in enumerate(['I','S','T','F','C']):
+                    s1  =pd1['gen'][(pd1['gen'].func==func)& (pd1['gen'].layer_idx==layer) ].set_index('checkpoint')[comp]
+                    # we use diff'd series becaudse TSs must be stationary to compute the Granger test. 
+                    #s1 = s1[s1.index>100000]
+                    #s1 = s1.diff().dropna()
+                    #s1 = s1.diff().dropna()
+                    currax = ax[i][layer-1]
+                    line = currax.plot(s1,s2, alpha=0.5, c=f'C{funcs.index(func)}',label=f'{func}')
+                    currax.set_title(f'layer{layer}')
+                    if layer==1:
+                        currax.set_ylabel(f'{comp}')
 
-                # ADFtest: Stationarity - H0:TS is stationary(if failed to rejec => TS not stationary.)
-                warn = (adfuller(s1)[1]>=0.05, adfuller(s2)[1]>=0.05)
-                if any(warn):
-                    if sum(warn)==1:
-                        print(f'WARN: {["TS","bleu"][warn.index(True)]} mod={m1},comp={comp},layer={layer},fn.={func},  is NOT stationary: Granger test may not be valid.')
-                    else:
-                        print(f'WARN: TS and bleu BOTH are not stationary: Granger test may not be valid for:mod.={m1},comp={comp},fn.={func}, layer={layer}')
-                else:
-                    coso = pd.DataFrame((s1,s2)).T
-                    ## HUOM: 
-                    ##      There was a single missing BLEU: model=rus-eng_s0 step=489000 ... filled it by hand, comment followng lines:
-                    #if coso['bleu'].isna().sum() > 0:
-                    #    step=coso.bleu[coso.bleu.isna()==True].index.to_numpy()
-                    #    print(f"filling NAs with last observed value for mod {m1}(ckpt,comp,fn,layer={step},{comp},{layer},{func}):{coso.isna().sum()} ")
-                    #    coso = coso.fillna(method='ffill')
-                    testres= grangercausalitytests(coso[[comp,'bleu']], maxlag=15, verbose=False)
-                    test='ssr_chi2test'
-                    pvals=[round(testres[i+1][0][test][1],4) for i in range(15)]
-                    # (H0): Time series x(model,layer,func)=comp DOEN NOT Granger-cause time series y(model)=blue
-                    grangertests = grangertests.append(   pd.DataFrame([[m1,layer,comp,func,np.min(pvals)]], columns=grangertests.columns)   )   
-        print(f"""
-            Done {len(grangertests)} Granger-causality tests out of all {4*6*6*5}, using 
-                H0: Time series X(model,layer,func)=comp DOES NOT Granger-cause time series Y(model)=blue 
-                    forall model in {list(datadict)}, layer=1,...,6 ,func in {list(pd1['gen'].func.unique())} comp in [I,S,T,F,C]""")
-        print("Reject H0 in all cases BUT:",grangertests[grangertests.pval>0.05])
-        import ipdb; ipdb.set_trace()
+            plt.legend()
+        plt.show()
+        crash
+
         #   ATTEMPT: Dynamic Time Warp
         if sys.argv[2]=='multilingual':
             maxckpt = min(datadict['s0']['gen'].checkpoint.max(),
@@ -477,7 +505,7 @@ def main(multilingual=False):
             for func in datadict['s0']['gen'].func.unique():
                 for comp in ['I', 'S', 'T', 'F', 'C']:
                     print(func,comp)
-                    dfdist = plot_dtw_allseeds(models, dfdist, func, comp, sys.argv[2]=='multilingual')
+                    dfdist = plot_dtw_allseeds(models, dfdist, func, comp, sys.argv[2]=='multilingual',doplots=False)
                     auxIDX+=1
             dfdist.to_csv(f'results/DTWdistances-res-gen{nom}.csv', index=False)
 
@@ -486,11 +514,10 @@ def main(multilingual=False):
         df = dfdist.copy().reset_index(drop=True)
         plotDTWheatmaps(df)
 
-        #plt.show()
+        plt.show()
         # PERFORM MannWhitney U-test to see if distance distributions are equivalent:
         permutation_and_U_tests(df)
 
-        #import ipdb; ipdb.set_trace()
 
 
     else:
@@ -520,12 +547,138 @@ def main(multilingual=False):
             auxIDX+=1
             #savefig... (f'RUS-ENG_SCATTERseeds_{func}.pdf') <- need the right size
         plt.show()
-        # ATTEMPT: Granger causality tests
+
 
 if __name__ == '__main__':
     multilingual = True if sys.argv[2]=='multilingual' else False
     main(multilingual)
 """
+# Failed ATTEMPT: Granger causality tests  
+                failed bc it does not make sense to have a "warped" test between quality and model structure
+
+plt.figure()
+
+grangertests=pd.DataFrame(columns=['model','layer','component','function','pval'])
+#grangertests=pd.DataFrame(columns=['model','layer','component','function','2ndS1diffs','pval'])
+for m1,pd1 in datadict.items():
+    m2 = f'{m1}-eng' if len(m1)>2 else f'rus-eng_{m1}'
+    s2 = bleu[bleu.model==m2].bleu
+    s2 = s2[s2.index>100000]
+    s2 = s2.diff().dropna()
+    ## Plot the BLEU scores of 2nd order differences trends
+    plt.plot(s2.rolling(100).mean(), label=m2+"1stDIFFs")
+    s2 = s2.diff().dropna()
+    ## Plot the BLEU scores of 2nd order differences trends
+    #plt.plot(s2.rolling(100).mean(), label=m2+"2ndDIFFs")            
+    
+    S2warn = (adfuller(s2)[1]>=0.05, kpss(s2)[1]<0.05)
+    if any(S2warn):
+        if S2warn[0]==1:
+            print(f'Model {m2} BLEU scores TS  is not stationary according to adfuller-test')
+        elif S2warn[1]==1:
+            print(f'Model {m2} BLEU scores TS  is not stationary according to kpss-test')
+
+
+    for layer,func,comp in itertools.product(range(1,7),pd1['gen'].func.unique(),['I','S','T','F','C']):
+        s1  =pd1['gen'][(pd1['gen'].func==func)& (pd1['gen'].layer_idx==layer) ].set_index('checkpoint')[comp]
+        
+        # we use diff'd series becaudse TSs must be stationary to compute the Granger test. 
+        s1 = s1[s1.index>100000]
+        s1 = s1.diff().dropna()
+        s1 = s1.diff().dropna()
+
+        if True: 
+            # ADFtest:  Stationarity
+            #           H0: TS has a unit root (i.e. it is NOT stationary)
+            #           H1: TS is stationary.
+            # KPSStest: Stationary around a mean or linear trend, or is non-stationary due to a unit root 
+            #           H0: TS is stationary
+            #           H1: TS is non-stationary 
+
+            S1warn = (adfuller(s1)[1]>=0.05, kpss(s1)[1]<0.05)
+            #S1warn2 = (False,False)
+            if any(S1warn):
+                print(f"WARN: Cannot perform Granger test for model={m1},comp={comp},layer={layer},fn.={func}. TS is non-stationary following")
+                print(f"      (adf,kpss)={S1warn}")
+                
+                ## Transform the TS to make it stationary
+                #s1 = s1.diff().dropna()
+                #S1warn2 = (adfuller(s1)[1]>=0.05, kpss(s1)[1]<0.05)
+            #if any(S1warn2):
+            #    print(f"WARN: Cannot perform Granger test for model={m1},comp={comp},layer={layer},fn.={func}. TS is non-stationary following")
+            #    print(f"WARN2: second diff did not work: (adf,kpss)={S1warn2}")
+            else: 
+                coso = pd.DataFrame((s1,s2)).T
+                coso = coso.dropna() # because we drop a value from s1 when taking second diffs
+                ## HUOM: 
+                ##      There was a single missing BLEU: model=rus-eng_s0 step=489000 ... filled it by hand, comment followng lines:
+                #if coso['bleu'].isna().sum() > 0:
+                #    step=coso.bleu[coso.bleu.isna()==True].index.to_numpy()
+                #    print(f"filling NAs with last observed value for mod {m1}(ckpt,comp,fn,layer={step},{comp},{layer},{func}):{coso.isna().sum()} ")
+                #    coso = coso.fillna(method='ffill')
+                testres= grangercausalitytests(coso[[comp,'bleu']], maxlag=15, verbose=False)
+                test='ssr_chi2test'
+                pvals=[round(testres[i+1][0][test][1],4) for i in range(15)]
+                # (H0): Time series x(model,layer,func)=comp DOES NOT Granger-cause time series y(model)=blue
+                grangertests = grangertests.append(   pd.DataFrame([[m1,layer,comp,func,np.min(pvals)]], columns=grangertests.columns)   )   
+                #grangertests = grangertests.append(   pd.DataFrame([[m1,layer,comp,func, any(S1warn),np.min(pvals)]], columns=grangertests.columns)   )   
+    
+plt.legend()
+plt.show()
+
+print(f"Done {len(grangertests)} Granger-causality tests out of all {4*6*6*5}, using \n H0: Time series X(model,layer,func)=comp DOES NOT Granger-cause time series Y(model)=blue \n forall model in {list(datadict)}, layer=1,...,6 ,func in {list(pd1['gen'].func.unique())} comp in [I,S,T,F,C]")
+#print("We do NOT reject H0 in the following cases:\n",grangertests[grangertests.pval>0.01])
+rejectGT = grangertests[grangertests.pval<=0.01].sort_values('function').reset_index(drop=True)
+print(f"We REJECT H0 in the following {len(rejectGT)} cases:\n{rejectGT}")
+
+fig = plt.figure()
+fig.suptitle('Granger Causality tests summary')
+spec = fig.add_gridspec(2, 10)
+idx=0
+
+coso = rejectGT
+total = 4*6*6*5
+nreject = len(coso) 
+nnotreject = len(grangertests) - nreject
+notperformed = total - (nreject + nnotreject)
+
+currax = fig.add_subplot(spec[0,2*idx:2*idx+2])
+currax.pie([nreject, nnotreject,notperformed], labels = ['Reject H0','Don\'t reject','not tested'] )
+currax.set_title("Total")
+
+currax = fig.add_subplot(spec[1,2*idx])
+proportions = [ len(coso[coso.component==comp])/len(coso) for comp in ['S','T','F','I','C'] ]
+currax.pie(proportions, labels = ['S','T','F','I','C'] )
+
+currax = fig.add_subplot(spec[1,2*idx+1])
+proportions = [ len(coso[coso.component==comp])/(len(coso)+notperformed) for comp in ['S','T','F','I','C'] ]
+proportions.append(notperformed/(len(coso)+notperformed))
+currax.pie(proportions, labels = ['S','T','F','I','C','None'] )
+for func in rejectGT.function.unique():
+    print(idx, 2*idx, 2*idx+1)
+    idx+=1
+    print(idx, 2*idx, 2*idx+1)
+    coso = rejectGT[rejectGT.function==func]
+    total = 6*6*5
+    nreject = len(coso) 
+    nnotreject = len(grangertests[grangertests.function==func]) - nreject
+    notperformed = total - (nreject + nnotreject)
+    
+    currax = fig.add_subplot(spec[0,2*idx:2*idx+2])
+    currax.pie([nreject, nnotreject,notperformed], labels = ['Reject H0','Don\'t reject','not tested'] )
+    currax.set_title(func)
+
+    currax = fig.add_subplot(spec[1,2*idx])
+    proportions = [ len(coso[coso.component==comp])/len(coso) for comp in ['S','T','F','I','C'] ]
+    currax.pie(proportions, labels = ['S','T','F','I','C'] )
+
+    currax = fig.add_subplot(spec[1,2*idx+1])
+    proportions = [ len(coso[coso.component==comp])/(len(coso)+notperformed) for comp in ['S','T','F','I','C'] ]
+    proportions.append(notperformed/(len(coso)+notperformed))
+    currax.pie(proportions, labels = ['S','T','F','I','C','None'] )
+
+plt.show()
+
 FAILED ATTEMPT: Pearson correlation & rolling-window version of it... 
                 failed bc the homoscedasticity assumption does not hold
 
