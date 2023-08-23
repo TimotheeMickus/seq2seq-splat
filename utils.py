@@ -1,4 +1,7 @@
 import pandas as pd
+import itertools
+from dtw import dtw,accelerated_dtw
+
 
 def Znormalize(df:pd.DataFrame()):
     # z-normalize a given dataframe
@@ -66,12 +69,12 @@ def read_datasets(dataset_name='both', multilingual=False,oh_decomp=False):
         ngs1means = ng1.filter(items=readitems, axis=1).rename(columns=newcols)
         ngs2means = ng2.filter(items=readitems, axis=1).rename(columns=newcols)
         if multilingual:
-            sla = pd.read_csv(f'{datadir}gen/res{decompname}-gen.sla-eng.csv')
-            ine = pd.read_csv(f'{datadir}gen/res{decompname}-gen.ine-eng.csv')
-            mul = pd.read_csv(f'{datadir}gen/res{decompname}-gen.mul-eng.csv')
-            ngsla=pd.read_csv(f'{datadir}no-gen/res{decompname}-no-gen.sla-eng.csv')
-            ngine=pd.read_csv(f'{datadir}no-gen/res{decompname}-no-gen.ine-eng.csv')
-            ngmul=pd.read_csv(f'{datadir}no-gen/res{decompname}-no-gen.mul-eng.csv')
+            sla = pd.read_csv(f'{datadir}/gen/res{decompname}-gen.sla-eng.csv')
+            ine = pd.read_csv(f'{datadir}/gen/res{decompname}-gen.ine-eng.csv')
+            mul = pd.read_csv(f'{datadir}/gen/res{decompname}-gen.mul-eng.csv')
+            ngsla=pd.read_csv(f'{datadir}/no-gen/res{decompname}-no-gen.sla-eng.csv')
+            ngine=pd.read_csv(f'{datadir}/no-gen/res{decompname}-no-gen.ine-eng.csv')
+            ngmul=pd.read_csv(f'{datadir}/no-gen/res{decompname}-no-gen.mul-eng.csv')
             slameans = sla.filter(items=readitems, axis=1).rename(columns=newcols)
             inemeans = ine.filter(items=readitems, axis=1).rename(columns=newcols)
             mulmeans = mul.filter(items=readitems, axis=1).rename(columns=newcols)
@@ -105,4 +108,53 @@ def read_datasets(dataset_name='both', multilingual=False,oh_decomp=False):
         if generative=='both':
             datadict[name]['non-gen'] = eval('ng'+name+'means')
 
-    return generative,datadict
+    if multilingual:
+        if generative:
+            maxckpt = min(datadict['s0']['gen'].checkpoint.max(),
+                          datadict['s1']['gen'].checkpoint.max(),
+                          datadict['s2']['gen'].checkpoint.max(),
+                          datadict['sla']['gen'].checkpoint.max(),
+                          datadict['ine']['gen'].checkpoint.max(),
+                          datadict['mul']['gen'].checkpoint.max(),)
+        else:
+            maxckpt = min(datadict['s0']['gen'].checkpoint.max(),
+                          datadict['s1']['gen'].checkpoint.max(),
+                          datadict['s2']['gen'].checkpoint.max(),)
+    metadata={'maxckpt':maxckpt, 'generative':generative}
+    return metadata,datadict
+
+
+def get_dtwdistances(models:dict(), distances:pd.DataFrame(), metric:str(), comp:str(), multilingual=False,doplots=False,decoding='gen'):
+
+    nlayers=7
+    if doplots:
+        fig, ax = plt.subplots(nrows=len(models), ncols=nlayers, num=f'DTW{auxIDX} metric{metric} component{comp}')
+        fig.suptitle(f'DTW Minimum Path comparison across seeds \n metric:{metric} and component:{comp}')
+
+    #for i, m in enumerate(comparisons):
+    for i,(m1,m2)in enumerate(itertools.combinations(models.keys(),2)):
+        mod1, mname1 = models[m1][decoding], f'{m1}-eng'
+        mod2, mname2 = models[m2][decoding], f'{m2}-eng'
+        df =  pd.DataFrame(mod1[mod1['func']==metric].filter(['layer_idx',f'{comp}','checkpoint'])).reset_index(drop=True)
+        df = df.pivot(index='checkpoint', columns='layer_idx',values=f'{comp}')
+        df2 = pd.DataFrame(mod2[mod2['func']==metric].filter(['layer_idx',f'{comp}','checkpoint'])).reset_index(drop=True)
+        df2 = df2.pivot(index='checkpoint', columns='layer_idx',values=f'{comp}') 
+        dlist=[mname1,mname2,metric,comp]
+        for j in range(nlayers):
+            d1 = df[j].values
+            d2 = df2[j].values
+            d, cost_matrix, acc_cost_matrix, path = accelerated_dtw(d1,d2, dist='euclidean')
+            dlist.append(d)
+            if doplots:
+                currax = ax[i][j]
+                currax.imshow(acc_cost_matrix.T, origin='lower', interpolation='nearest')
+                currax.plot(path[0], path[1], 'w')
+                if j == 0:
+                    currax.set_xlabel(f'{mname1}', weight='bold')
+                    currax.set_ylabel(f'{mname2}', weight='bold')
+                if i == 0:
+                    currax.set_title(f'layer {j}')
+                    currax.text(50, 500, f'distance: {np.round(d,3)}', 
+                     bbox=dict(fill=True, color='gray'))
+        distances = pd.concat([distances, pd.DataFrame([dlist], columns=distances.columns)])
+    return distances

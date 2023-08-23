@@ -11,10 +11,10 @@ from utils import read_datasets
 
 
 def main(data,multilingual=False,oh_decomp=False):
-    generative, datadict = read_datasets(data, multilingual,oh_decomp=oh_decomp)
+    metadata, datadict = read_datasets(data, multilingual,oh_decomp=oh_decomp)
     components = ['I','S','T','F','C'] if not(oh_decomp) else ['S','T','C']
     name=''.join(components)+'_L1norm'
-    #infer = ['gen','no-gen'] if generative=='both' else [generative]
+    #infer = ['gen','no-gen'] if metadata['generative']=='both' else [metadata['generative']]
     bleu = pd.read_csv(f'results/bleu-scores2.csv').sort_values('checkpoint')
     bleu = bleu.set_index('checkpoint').sort_index()
 
@@ -78,7 +78,7 @@ def main(data,multilingual=False,oh_decomp=False):
         spearmansSTATS[f'{column} rus_allseeds stdv'] = spearmans[cols].std(axis=1) #spearmans.apply(lambda row: np.std([row[col] for col in cols]), axis=1)
     print(spearmansSTATS)
     fsuffix="oh-schuler" if oh_decomp else "mickus-etal"
-    spearmansSimport reTATS.to_csv(f'results/Spearmancorrelations-{fsuffix}.csv')
+    spearmansSTATS.to_csv(f'results/Spearmancorrelations-{fsuffix}.csv')
 
 
 sys.argv = sys.argv if len(sys.argv)>=2 else [sys.argv[0],'gen','notmultilingual','mickus']
