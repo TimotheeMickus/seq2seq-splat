@@ -53,10 +53,10 @@ def main(data,multilingual=False,oh_decomp=False):
                         #bleudiff.append(coso.loc[ckpts[1]])
                         #funcdiff.append(diffs.ISFTCmeanvec.values)
             diffDF = diffDF.reset_index()
+            print(f'MODEL {m1}: Spearman correlations between Δ(BLEU) and {[name]+components} for a sample of {samplesize} pairs of ckpts')
             for column in [name]+components:
                 aux = diffDF.groupby(['layer_idx','func'])[['bleu',column]]
                 colname = column+' '+m1+' '+str(_)
-                print(f'MODEL {m1}: Spearman correlations between Δ(BLEU) and {column} for a sample of {samplesize} pairs of ckpts')
                 if spearmans is None:
                     spearmans = aux.corr('spearman').iloc[0::2,-1].sort_index(level=1).droplevel(level=2).reset_index()
                     spearmans = spearmans.rename(columns={name:colname})
@@ -64,9 +64,8 @@ def main(data,multilingual=False,oh_decomp=False):
                     spearmans[colname] = aux.corr('spearman').iloc[0::2,-1].sort_index(level=1).droplevel(level=2).reset_index()[column]
             #print(spearmans)
     
-
     spearmansSTATS = spearmans[['layer_idx','func']]
-    for m1, column in zip(datadict.keys(),[name]+components):
+    for m1, column in itertools.product(datadict.keys(),[name]+components):
         cols = [col for col in spearmans if col.startswith(column+' '+m1)]
         spearmansSTATS[column+' '+m1+ ' mean'] = spearmans[cols].mean(axis=1) #spearmans.apply(lambda row: np.mean([row[col] for col in cols]), axis=1)
         spearmansSTATS[column+' '+m1+ ' stdv'] = spearmans[cols].std(axis=1) #spearmans.apply(lambda row: np.std([row[col] for col in cols]), axis=1)
