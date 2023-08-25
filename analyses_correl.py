@@ -2,15 +2,15 @@ import sys, os, itertools, random, re
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from dtw import dtw,accelerated_dtw
-from statsmodels.tsa.stattools import grangercausalitytests, adfuller
-import scipy.stats as stats
+from joblib import Parallel, delayed
 
 from utils import read_datasets
 
 
 
 def main(data, multilingual=False, oh_decomp=False, qualitymetric='bleu'):
+    fsuffix=f"{qualitymetric}_oh-schuler" if oh_decomp else f"{qualitymetric}_mickus-etal"
+    print(f'CORRELATIONS FOR {fsuffix}, multilingual={multilingual}')
     metadata, datadict = read_datasets(data, multilingual,oh_decomp=oh_decomp)
     components = ['I','S','T','F','C'] if not(oh_decomp) else ['S','T','C']
     name=''.join(components)+'_L1norm'
@@ -38,16 +38,15 @@ def main(data, multilingual=False, oh_decomp=False, qualitymetric='bleu'):
                     maxckpt = np.min((qscorespart.index.max(),ts.index.max()))//1000
                     for ck1,ck2 in random.sample(list(itertools.combinations(range(1,1+maxckpt),2)),samplesize):
                         ckpts = [ck1*1000,ck2*1000] 
-                        coso = qscorespart.score.loc[ckpts].diff().dropna().abs()
-                        diffs = ts.loc[ckpts].sort_values(by='layer_idx').diff().dropna().abs()
+                        coso = qscorespart.score.loc[ckpts].diff().dropna()
+                        diffs = ts.loc[ckpts].sort_values(by='layer_idx').diff().dropna()
                         diffs = diffs[diffs.layer_idx == 0]
                         diffs.layer_idx = [1,2,3,4,5,6]
                         diffs[qualitymetric] = coso
                         diffs['func'] = func
                         diffs = diffs.reset_index()
                         diffs['checkpoint2'] = ckpts[0]
-                        # TODO: instead of the mean, use L1(sum of abs.values)
-                        # TODO: compute them also individually
+                        # compute L1(sum of abs.values)
                         diffs[name]=diffs[components].abs().sum(axis=1)
                         diffDF = pd.concat([diffDF,diffs])
                         #qscoresdiff.append(coso.loc[ckpts[1]])
@@ -77,7 +76,6 @@ def main(data, multilingual=False, oh_decomp=False, qualitymetric='bleu'):
         spearmansSTATS[f'{column} rus_allseeds mean'] = spearmans[cc].mean(axis=1) 
         spearmansSTATS[f'{column} rus_allseeds stdv'] = spearmans[cc].std(axis=1) 
     print(spearmansSTATS)
-    fsuffix=f"{qualitymetric}_oh-schuler" if oh_decomp else f"{qualitymetric}_mickus-etal"
     spearmansSTATS.to_csv(f'results/Spearmancorrelations-{fsuffix}.csv')
 
 
@@ -87,11 +85,23 @@ if __name__ == '__main__':
     multilingual = True if sys.argv[2]=='multilingual' else False
     oh_decomp = True if sys.argv[3].lower().find('oh') > -1 else False
 
-    #main(data, multilingual,oh_decomp)
-    #main(data, multilingual,not(oh_decomp))
+    results = Parallel(n_jobs=6)(delayed(main)(*args, **kwargs)
+                                    for *args, kwargs in (
+                                        [ data, multilingual,oh_decomp, {'qualitymetric':'bleu'} ],
+                                        [ data, multilingual,oh_decomp, {'qualitymetric':'comet'} ],
+                                        [ data, multilingual,oh_decomp, {'qualitymetric':'chrf'} ],
+                                        [ data, multilingual,not(oh_decomp), {'qualitymetric':'bleu'} ],
+                                        [ data, multilingual,not(oh_decomp), {'qualitymetric':'comet'} ],
+                                        [ data, multilingual,not(oh_decomp), {'qualitymetric':'chrf'} ],
+                                    )
+                                )
+
+ 
+    """ LEGACY: not parallelized
     main(data, multilingual,oh_decomp,qualitymetric='bleu')
     main(data, multilingual,oh_decomp,qualitymetric='comet')
     main(data, multilingual,oh_decomp,qualitymetric='chrf')
     main(data, multilingual,not(oh_decomp),qualitymetric='bleu')
     main(data, multilingual,not(oh_decomp),qualitymetric='comet')
     main(data, multilingual,not(oh_decomp),qualitymetric='chrf')
+    """

@@ -36,12 +36,13 @@ def main(data, multilingual=False, oh_decomp=False, qualitymetric='comet'):
                 for ck1,ck2 in itertools.combinations(df[df.hyp==sent].index.unique(),2):
                     for func in df.func.unique():
                         diffs = df[(df.func=='norm_ratio') & (df.hyp==sent) ].loc[[ck1,ck2]].sort_values('layer_idx')[['layer_idx','comet_score']+components]
-                        diffs = diffs.diff().dropna().abs()
+                        diffs = diffs.diff().dropna()
                         diffs = diffs[diffs.layer_idx == 0]
                         diffs.layer_idx = [0,1,2,3,4,5,6]
                         diffs['func'] = func
                         diffs = diffs.reset_index()
                         diffs['ckpt2'] = ck1
+                        # compute L1(sum of abs.values)
                         diffs[name]=diffs[components].abs().sum(axis=1)
                         diffDF = pd.concat([diffDF,diffs])
 
