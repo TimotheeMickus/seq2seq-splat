@@ -10,7 +10,7 @@ from utils import read_datasets
 
 
 
-def main(data, multilingual=False, oh_decomp=False, qualitymetric='comet'):
+def main(data, multilingual=False, oh_decomp=False, qualitymetric='comet',nsentsexp=2):
 #    metadata, datadict = read_datasets(data, multilingual,oh_decomp=oh_decomp)
     #infer = ['gen','no-gen'] if metadata['generative']=='both' else [metadata['generative']]
     #qscores = pd.read_csv(f'results/{qualitymetric}-scores2.csv').sort_values('checkpoint')
@@ -22,35 +22,46 @@ def main(data, multilingual=False, oh_decomp=False, qualitymetric='comet'):
     spearmans = None
     components = ['I','S','T','F','C'] if not(oh_decomp) else ['S','T','C']
     name=''.join(components)+'_L1norm'
+    fsuffix=f".oh-schuler" if oh_decomp else f""
 
 
     for _ in range(nexperims):
-        for m1 in ['rus_s0','rus_s1','rus_s2','sla','ine','mul']:
+        for mod in ['rus _s0','rus _s1','rus _s2','sla','ine','mul']:
             diffDF=pd.DataFrame(columns=['ckpt', 'ckpt2','layer_idx','func',qualitymetric+'_score',name]+components)
 
-            seed,m1 = m1.split('_') if m1.find('rus')>=0 else ('',m1)
-            df = pd.read_csv(f'results/sentence-level/res-sentence-level.{m1}-eng{seed}.csv').set_index('ckpt')
+            m1, seed = mod.split() if mod.find('rus')>=0 else (mod,'')
+            df = pd.read_csv(f'results/sentence-level/res-sentence-level.{m1}-eng{seed}{fsuffix}.csv').set_index('ckpt')
 
-            for sent in random.sample(list(df.hyp.unique()),samplesize):
+            for sent in random.sample(list( itertools.combinations(df.hyp.unique(),nsentsexp)  ), samplesize):
                 # exhaustive: for every two ckpts
-                for ck1,ck2 in itertools.combinations(df[df.hyp==sent].index.unique(),2):
+                if nsentsexp==2:
+                    ckpts = zip(*[ df[df.hyp==s].index.unique() for s in sent] )
+                elif nsentsexp==1:
+                    ckpts = itertools.combinations(df[df.hyp==sent[0]].index.unique(),2)
+                for ck1,ck2 in ckpts:
                     for func in df.func.unique():
-                        diffs = df[(df.func=='norm_ratio') & (df.hyp==sent) ].loc[[ck1,ck2]].sort_values('layer_idx')[['layer_idx','comet_score']+components]
+                        if ck1 == ck2:
+                            diffs = df[(df.func==func) & ( df.hyp.isin(sent) ) ].sort_values('layer_idx')[['layer_idx','comet_score']+components]
+                        else:
+                            diffs = df[(df.func==func) & ( df.hyp.isin(sent) ) ].loc[[ck1,ck2]].sort_values('layer_idx')[['layer_idx','comet_score']+components]
+                        # won't deal with layer 0
+                        diffs.loc[diffs.layer_idx==0,components] = np.nan
                         diffs = diffs.diff().dropna()
                         diffs = diffs[diffs.layer_idx == 0]
-                        diffs.layer_idx = [0,1,2,3,4,5,6]
+                        diffs.layer_idx = [x for x in range(1,7)]
                         diffs['func'] = func
                         diffs = diffs.reset_index()
                         diffs['ckpt2'] = ck1
-                        # compute L1(sum of abs.values)
+                        # compute L1norm(sum of abs.values)
                         diffs[name]=diffs[components].abs().sum(axis=1)
                         diffDF = pd.concat([diffDF,diffs])
+            import ipdb; ipdb.set_trace()
 
             diffDF = diffDF.reset_index()
-            print(f'MODEL {m1} experim{_}: sentence-level spearman correlations between Δ({qualitymetric}) and {[name]+components} for a sample of {samplesize} pairs of sentences')
+            print(f'MODEL {mod} experim{_}: sentence-level spearman correlations between Δ({qualitymetric}) and {[name]+components} for a sample of {samplesize} pairs of sentences')
             for column in [name]+components:
                 aux = diffDF.groupby(['layer_idx','func'])[[qualitymetric+'_score',column]]
-                colname = column+' '+m1+' '+str(_)
+                colname = column+' '+''.join(mod)+' '+str(_)
                 if spearmans is None:
                     spearmans = aux.corr('spearman').iloc[0::2,-1].sort_index(level=1).droplevel(level=2).reset_index()
                     spearmans = spearmans.rename(columns={name:colname})
@@ -84,9 +95,12 @@ if __name__ == '__main__':
 
     #main(data, multilingual,oh_decomp)
     #main(data, multilingual,not(oh_decomp))
-    main(data, multilingual,oh_decomp,qualitymetric='bleu')
+
+
+    main(data, multilingual,not(oh_decomp),qualitymetric='comet')
     main(data, multilingual,oh_decomp,qualitymetric='comet')
+
+    main(data, multilingual,oh_decomp,qualitymetric='bleu')
     main(data, multilingual,oh_decomp,qualitymetric='chrf')
     main(data, multilingual,not(oh_decomp),qualitymetric='bleu')
-    main(data, multilingual,not(oh_decomp),qualitymetric='comet')
     main(data, multilingual,not(oh_decomp),qualitymetric='chrf')
