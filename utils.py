@@ -1,5 +1,6 @@
 import pandas as pd
 import itertools
+from matplotlib import pyplot as plt
 from dtw import dtw,accelerated_dtw
 
 
@@ -158,3 +159,49 @@ def get_dtwdistances(models:dict(), distances:pd.DataFrame(), metric:str(), comp
                      bbox=dict(fill=True, color='gray'))
         distances = pd.concat([distances, pd.DataFrame([dlist], columns=distances.columns)])
     return distances
+
+def plotDTWheatmaps(df):
+    models = ['s0', 's1', 's2','sla','ine','mul']
+    fig, ax = plt.subplots(nrows=len(df.metric.unique()), ncols=len(models), constrained_layout=True)
+    for i,func in enumerate(df.metric.unique()):
+        for j,seed in enumerate(models):
+            currax = ax[i][j]
+            coso = df[((df.metric==func)  & ((df.model2==f'{seed}-eng') | (df.model1==f'{seed}-eng') ))]# & (df.component!='C')]
+            plttitle = f'DTW dist. to {seed}-eng'
+
+            currax.imshow(coso.iloc[:,-6:].T)
+            xlabels = [f"{k} {l.split(' ')[-1].split('-')[0]} {m.split(' ')[-1].split('-')[0]}".replace(f' {seed}','') for k,l,m in zip(coso.component,coso.model1,coso.model2)]
+            currax.set_xticks([i for i in range(len(coso))])
+            currax.set_xticklabels(['']*len(coso))
+            #currax.set_yticklabels(["","2","","4","","6"])
+            if j==0:
+                currax.set_ylabel(func)
+            if i==0:
+                currax.set_title(plttitle)
+            if i==(len(df.metric.unique())-1):
+                #currax.set_yticks([1,2,3,4,5,6])
+                #currax.set_yticklabels(["","2","","4","","6"])
+                currax.set_xlabel('COMPONENT  distance-to-model')
+                currax.set_xticklabels(xlabels)
+                currax.xaxis.set_tick_params(rotation=90)
+    
+    fig, ax = plt.subplots(ncols=1, nrows=len(models), constrained_layout=True)
+    for j,seed in enumerate(models):
+        currax = ax[j]
+        if len(seed) == 2:
+            coso = df[( ((df.model2==f'rus-eng {seed}') | (df.model1==f'rus-eng {seed}') ))]
+            plttitle = f'DTW dist. to rus-eng seed {seed}'
+        else:   
+            coso = df[( ((df.model2==f'{seed}-eng') | (df.model1==f'{seed}-eng') ))]
+            plttitle = f'DTW dist. to {seed}-eng'
+        currax.imshow(coso.iloc[:,-6:].T)
+        xlabels = [f"{k} {l.split(' ')[-1].split('-')[0]}-{m.split(' ')[-1].split('-')[0]}" for k,l,m in zip(coso.component,coso.model1,coso.model2)]
+        currax.set_xticks([i for i in range(len(coso))])
+        currax.set_xticklabels(['']*len(coso))
+        currax.set_ylabel(plttitle)
+
+        if j == len(models)-1:
+            currax.set_xticklabels(xlabels)
+            currax.xaxis.set_tick_params(rotation=90)
+            currax.set_xlabel('COMPONENT  distance-to-model')
+

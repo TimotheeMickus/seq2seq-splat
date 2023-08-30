@@ -2,10 +2,8 @@ import sys, os, itertools, random, re
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from statsmodels.tsa.stattools import grangercausalitytests, adfuller
-import scipy.stats as stats
 
-from utils import read_datasets, get_dtwdistances
+from utils import read_datasets, get_dtwdistances, plotDTWheatmaps
 
 
 
@@ -22,19 +20,67 @@ def main(data,multilingual=False,oh_decomp=False):
     nom = "_multilingual" if multilingual else "_bilingual"
     fsuffix="oh-schuler" if oh_decomp else "mickus-etal"
 
-    #if os.path.exists(f'results/DTWdistances-res-gen{nom}.csv'):
-    #    dfdist = pd.read_csv(f'results/DTWdistances-res-gen{nom}.csv')
-    #else:
-    if True:
+    if os.path.exists(f'results/DTWdistances-res-gen{nom}.csv'):
+        dfdist = pd.read_csv(f'results/DTWdistances-res-gen{nom}-{fsuffix}.csv')
+    else:
         for func,comp in itertools.product(functions, components):
             print(func,comp)
             dfdist = get_dtwdistances(datadict, dfdist, func, comp, multilingual,doplots=False)            
         dfdist.to_csv(f'results/DTWdistances-res-gen{nom}-{fsuffix}.csv', index=False)
 
+    for _ in range(2):
+        components = ['I','S','T','F','C'] if _==1  else ['S','T','C']
+        wratios =  [8 for k in range(len(components))]+[1]
+        fig, ax = plt.subplots(nrows=1, ncols=len(components)+1,  gridspec_kw={'width_ratios':wratios})
 
-    # dfdist = pd.read
-    df = dfdist.copy().reset_index(drop=True)
-    plotDTWheatmaps(df)
+        nom = "_multilingual" 
+        fsuffix="oh-schuler" if _==0 else "mickus-etal"
+        figtitle="Oh & Schuler Decomposition" if _==0 else "Mickus et al. Decomposition"
+        fig.suptitle(figtitle, fontsize = 15)
+        dfdist = pd.read_csv(f'results/DTWdistances-res-gen{nom}-{fsuffix}.csv')
+
+        df = dfdist.copy().reset_index(drop=True)
+        #plotDTWheatmaps(df)
+        #plt.show()
+        idxorder = ['s0-eng', 's1-eng', 's2-eng', 'sla-eng', 'ine-eng', 'mul-eng']
+        for i, comp in enumerate(components):
+            currax = ax[i]
+            coso = df[(df.metric=='cosine') & (df.component==comp)][['component','model1','model2','layer6']].pivot(index='model1',columns='model2',values='layer6').fillna(0)
+            coso2= df[(df.metric=='norm_ratio') & (df.component==comp)][['component','model1','model2','layer6']].pivot(index='model1',columns='model2',values='layer6').fillna(0)
+            # Reorder the rows based on the desired order
+            coso['s0-eng']=0
+            coso2['s0-eng']=0
+            coso.loc['mul-eng']=0
+            coso2.loc['mul-eng']=0
+            coso = coso[idxorder].reindex(idxorder)
+            coso2 = coso2[idxorder].reindex(idxorder).T
+            hmap = (coso+coso2).to_numpy()
+            hmap[range(len(hmap)),range(len(hmap))] = np.nan
+            im = currax.imshow(hmap)
+            currax.set_title(f'{comp}\n cosine ')
+            currax.tick_params(
+                                axis='x',          # changes apply to the x-axis
+                                which='both',      # both major and minor ticks are affected
+                                bottom=False,      # ticks along the bottom edge are off
+                                top=True,         # ticks along the top edge are off
+                                labelbottom=False,
+                                labeltop=True)
+            currax.set_xlabel('')
+            currax.set_xticks([0,1,2,3,4,5])
+            currax.set_xticklabels([ll.split('-')[0] for ll in idxorder])
+
+            if i==0:
+                currax.set_ylabel(f'norm ratio',fontsize=12)
+                currax.set_yticklabels([ll.split('-')[0] for ll in idxorder])
+                currax.set_yticks([0,1,2,3,4,5])
+                #currax.xaxis.set_tick_params(rotation=90)
+            else:
+                currax.set_yticklabels(["" for ll in idxorder])
+                currax.set_yticks([9])
+
+        plt.colorbar(im,cax=ax[i+1])
+
+    
 
     plt.show()
     # PERFORM MannWhitney U-test to see if distance distributions are equivalent:
