@@ -19,4 +19,11 @@ An example of usage is provided in `dump_sims.py`, which defines a few
 similarity metrics and dumps in a CSV all similarity measurements for an input
 parallel corpus.
 
-Similar scripts for token-wise decomposition as proposed by Oh & Schuler, 2023 can also be found in the
+Similar scripts for token-wise decomposition inspired by Oh & Schuler (2023) can also be found in this repo.
+
+## Citation
+
+If this code has been useful to you in any way, please consider citing our publication:
+```tex
+Once we have a bibentry, that is.
+```
