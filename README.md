@@ -25,5 +25,12 @@ Similar scripts for token-wise decomposition inspired by Oh & Schuler (2023) can
 
 If this code has been useful to you in any way, please consider citing our publication:
 ```tex
-Once we have a bibentry, that is.
+@misc{mickus2023bother,
+      title={Why bother with geometry? On the relevance of linear decompositions of Transformer embeddings}, 
+      author={Timothee Mickus and Raúl Vázquez},
+      year={2023},
+      eprint={2310.06977},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL}
+}
 ```
