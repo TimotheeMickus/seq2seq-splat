@@ -25,12 +25,24 @@ Similar scripts for token-wise decomposition inspired by Oh & Schuler (2023) can
 
 If this code has been useful to you in any way, please consider citing our publication:
 ```tex
-@misc{mickus2023bother,
-      title={Why bother with geometry? On the relevance of linear decompositions of Transformer embeddings}, 
-      author={Timothee Mickus and Raúl Vázquez},
-      year={2023},
-      eprint={2310.06977},
-      archivePrefix={arXiv},
-      primaryClass={cs.CL}
+@inproceedings{mickus-vazquez-2023-bother,
+    title = "Why Bother with Geometry? On the Relevance of Linear Decompositions of Transformer Embeddings",
+    author = "Mickus, Timothee  and
+      V{\'a}zquez, Ra{\'u}l",
+    editor = "Belinkov, Yonatan  and
+      Hao, Sophie  and
+      Jumelet, Jaap  and
+      Kim, Najoung  and
+      McCarthy, Arya  and
+      Mohebbi, Hosein",
+    booktitle = "Proceedings of the 6th BlackboxNLP Workshop: Analyzing and Interpreting Neural Networks for NLP",
+    month = dec,
+    year = "2023",
+    address = "Singapore",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2023.blackboxnlp-1.10",
+    doi = "10.18653/v1/2023.blackboxnlp-1.10",
+    pages = "127--141",
+    abstract = "A recent body of work has demonstrated that Transformer embeddings can be linearly decomposed into well-defined sums of factors, that can in turn be related to specific network inputs or components. There is however still a dearth of work studying whether these mathematical reformulations are empirically meaningful. In the present work, we study representations from machine-translation decoders using two of such embedding decomposition methods. Our results indicate that, while decomposition-derived indicators effectively correlate with model performance, variation across different runs suggests a more nuanced take on this question. The high variability of our measurements indicate that geometry reflects model-specific characteristics more than it does sentence-specific computations, and that similar training conditions do not guarantee similar vector spaces.",
 }
 ```
