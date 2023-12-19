@@ -24,7 +24,7 @@ Similar scripts for token-wise decomposition inspired by Oh & Schuler (2023) can
 ## Citation
 
 If this code has been useful to you in any way, please consider citing our publication:
-```tex
+```bibtex
 @inproceedings{mickus-vazquez-2023-bother,
     title = "Why Bother with Geometry? On the Relevance of Linear Decompositions of Transformer Embeddings",
     author = "Mickus, Timothee  and
